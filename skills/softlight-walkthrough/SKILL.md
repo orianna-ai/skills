@@ -35,10 +35,9 @@ the moment the PR exists and is still the right link later.
   below for the direct `/demo/...` link. This replaces building, running or screenshotting the app.
   If the video isn't ready yet, give the waiting page instead.
 - **You just opened or pushed to a PR**: always give the Softlight link alongside the PR link, but
-  don't run the script. The video takes about five minutes to
-  land, so it would only report `queued` or `running`. Put the waiting page in your summary,
-  labelled as still filming, for example "Walkthrough (filming, ready in about 5 min):" followed by
-  the link on its own line.
+  don't run the script. The video takes about five minutes to land, so it would only report `queued`
+  or `running`. Put the waiting page in your summary, labelled as still filming, for example
+  "Walkthrough (filming, ready in about 5 min):" followed by the link on its own line.
 
 ## Get the link
 
