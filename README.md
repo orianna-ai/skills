@@ -5,6 +5,7 @@ Agent skills for working with Softlight.
 | Skill                                                    | What it does                                                                       |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | [`softlight-walkthrough`](skills/softlight-walkthrough/) | Shows what a pull request's change looks like via its Softlight walkthrough video. |
+| [`softlight-video`](skills/softlight-video/)             | Pushes the local branch and has Softlight make a demo video of it, no PR needed.   |
 
 ## Install
 
