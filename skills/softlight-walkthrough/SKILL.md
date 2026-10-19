@@ -26,11 +26,11 @@ Run `get_walkthrough.sh` from this skill's directory:
 <skill dir>/get_walkthrough.sh 123    # inside a checkout of acme/web
 ```
 
-| Exit | stdout             | stderr                             |
-| ---- | ------------------ | ---------------------------------- |
-| `0`  | The walkthrough URL | Nothing.                          |
-| `1`  | Nothing            | The state, and why there's no link. |
-| `2`  | Nothing            | Bad input, or nothing could be read. |
+| Exit | stdout              | stderr                                                         |
+| ---- | ------------------- | -------------------------------------------------------------- |
+| `0`  | The walkthrough URL | Nothing.                                                       |
+| `1`  | Nothing             | The state and why there's no walkthrough yet (see below).      |
+| `2`  | Nothing             | Bad input, a PR Softlight can't see, or Softlight unreachable. |
 
 The script needs `curl` and `jq`. It also uses `gh` when `gh` is installed and authenticated, but
 it works without it.
