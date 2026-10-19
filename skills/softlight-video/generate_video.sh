@@ -2,7 +2,7 @@
 #
 # Push the local branch to a Softlight challenge ref and have Softlight make a demo video of it.
 #
-#   make_video.sh [what to show]
+#   generate_video.sh [what to show]
 #
 # The branch is pushed to origin as refs/softlight/challenge/<nonce>, so it never shows up as a
 # branch. Uncommitted and untracked changes go with it (files .gitignore excludes stay behind): they
@@ -23,7 +23,7 @@ set -euo pipefail
 
 BASE_URL="${SOFTLIGHT_BASE_URL:-https://app.softlight.com}"
 readonly BASE_URL="${BASE_URL%/}"
-readonly USAGE="usage: make_video.sh [what to show]"
+readonly USAGE="usage: generate_video.sh [what to show]"
 
 die() {
   echo "$*" >&2
