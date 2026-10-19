@@ -1,0 +1,32 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+jobs:
+  pre-commit:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN || github.token }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.14
+      - uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --all-files
+        env:
+          SKIP: no-commit-to-branch
+      - if: failure()
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: run pre-commit'
