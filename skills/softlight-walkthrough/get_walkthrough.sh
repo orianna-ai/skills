@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Print the Softlight share page for a pull request.
+# Print the link to a pull request's Softlight walkthrough (its share page).
 #
-#   share_page.sh <pr>
+#   get_walkthrough.sh <pr>
 #
 # <pr> is a pull request URL (https://github.com/<owner>/<repo>/pull/<n>), <owner>/<repo>#<n>, or a
 # bare number (the repository is then read from the current checkout's `origin` remote).
 #
 # Prints the share page URL on stdout and exits 0 when the pull request has one. Otherwise prints
-# what Softlight says about the pull request on stderr and exits 1 (no share page yet) or 2 (bad
-# input or nothing could be read).
+# the walkthrough's state on stderr and exits 1 (no share page yet) or 2 (bad input, or nothing
+# could be read).
 #
 # Two sources, in order:
 #   1. The Softlight check run on the pull request's head commit. Its details_url is the share page
@@ -24,7 +24,7 @@ die() {
   exit 2
 }
 
-[[ $# -eq 1 ]] || die "usage: share_page.sh <pull request URL | owner/repo#number | number>"
+[[ $# -eq 1 ]] || die "usage: get_walkthrough.sh <pull request URL | owner/repo#number | number>"
 command -v curl >/dev/null || die "curl is required"
 command -v jq >/dev/null || die "jq is required"
 
