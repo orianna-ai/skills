@@ -2,9 +2,9 @@
 
 Agent skills for working with Softlight.
 
-| Skill                                                    | What it does                                                   |
-| -------------------------------------------------------- | -------------------------------------------------------------- |
-| [`softlight-walkthrough`](skills/softlight-walkthrough/) | Gets the link to a pull request's Softlight walkthrough video. |
+| Skill                                                    | What it does                                                                       |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [`softlight-walkthrough`](skills/softlight-walkthrough/) | Shows what a pull request's change looks like via its Softlight walkthrough video. |
 
 ## Install
 

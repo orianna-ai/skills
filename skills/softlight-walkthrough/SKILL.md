@@ -1,13 +1,16 @@
 ---
 name: softlight-walkthrough
 description: >-
-  Get the link to a pull request's Softlight walkthrough: the app.softlight.com/demo/... page
-  that plays a video of the change. Use whenever someone asks for a PR's walkthrough, Softlight
-  video, share page, share link, or demo link ("get the walkthrough for #123", "send me the video
-  for this PR", "is the Softlight video ready?"). Also use it on your own after you open, push to,
-  or finish a pull request in a repository Softlight reviews, so you can hand your user the
-  walkthrough link with your summary. Takes a PR URL, owner/repo#number, or a bare number in the
-  current checkout, and says why when there's no walkthrough yet.
+  See what a pull request's change looks like without running the app: Softlight films a
+  walkthrough video of every PR it reviews, on an app.softlight.com/demo/... share page. Use this
+  INSTEAD of building, running or screenshotting the app whenever someone asks to see, show,
+  preview or demo a PR's change ("show me what it looks like", "what does this change look
+  like?", "can I see it?"), or asks for a PR's walkthrough, Softlight video, share page, share
+  link or demo link ("send me the video for #123", "is the Softlight video ready?"). When you
+  open or push to a PR in a repository Softlight reviews (softlight[bot] reviews its PRs), don't
+  run anything: put the PR's waiting-page link, which you can build from the PR number, in your
+  summary. Takes a PR URL, owner/repo#number, or a bare number in the current checkout, and says
+  why when there's no walkthrough yet.
 ---
 
 # softlight-walkthrough
@@ -15,6 +18,25 @@ description: >-
 Softlight reviews pull requests and films a walkthrough video of each change. The walkthrough lives
 on a share page, `https://app.softlight.com/demo/<owner>/<repo>/pr<number>/<token>`. The token is
 random, so you can't build the URL yourself. You have to look it up.
+
+Every PR also has a waiting page whose URL you *can* build from the PR alone:
+
+```
+https://app.softlight.com/api/softlight/walkthrough/<owner>/<repo>/<number>
+```
+
+It shows the review's progress and turns into the walkthrough once the video is ready, so it works
+the moment the PR exists and is still the right link later.
+
+## Which link, when
+
+- **Someone wants to see a change** ("show me what it looks like", "can I see it?"): run the script
+  below for the direct `/demo/...` link. This replaces building, running or screenshotting the app.
+  If the video isn't ready yet, give the waiting page instead.
+- **You just opened or pushed to a PR**: don't run the script. The video takes about five minutes
+  to land, so it would only report `queued` or `running`. Put the waiting page in your summary,
+  labelled as still filming, for example "Walkthrough (filming, ready in about 5 min):" followed by
+  the link on its own line.
 
 ## Get the link
 
@@ -40,9 +62,8 @@ it works without it.
 Paste the URL bare, on its own line, so it stays clickable. Don't wrap it in code formatting, and
 don't swap it for a link of your own.
 
-If you opened the pull request yourself, the video usually lands a few minutes after the push. If
-the state is `queued`, `indexing` or `running`, tell the user it's still filming and give them the
-waiting page (below). Don't block your reply on it.
+If the state is `queued`, `indexing` or `running`, tell the user it's still filming and give them the
+waiting page. Don't block your reply on it.
 
 ## When there's no link yet
 
@@ -56,10 +77,8 @@ waiting page (below). Don't block your reply on it.
 | `none`       | Softlight didn't film this PR.                      | There's no walkthrough.                   |
 | `unknown`    | GitHub didn't answer just now.                      | Run the script again in a few seconds.    |
 
-The waiting page is
-`https://app.softlight.com/api/softlight/walkthrough/<owner>/<repo>/<number>`. It shows the
-review's progress and turns into the walkthrough when the video lands. Tell the user that's what
-it is, not the video itself.
+When you give the waiting page, tell the user that's what it is: a page that turns into the
+walkthrough when the video lands, not the video itself.
 
 ## Without the script
 
