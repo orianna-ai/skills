@@ -1,5 +1,5 @@
 ---
-name: softlight-share-page
+name: softlight-walkthrough
 description: >-
   Get the Softlight share page for a GitHub pull request: the app.softlight.com/demo/... page with
   the walkthrough video of the change. Use when someone asks for a PR's share page, share link,
@@ -9,7 +9,7 @@ description: >-
   current checkout, and says why when there is no share page yet.
 ---
 
-# softlight-share-page
+# softlight-walkthrough
 
 Softlight reviews pull requests and films a walkthrough of each change. The **share page** is the
 page that plays it: `https://app.softlight.com/demo/<owner>/<repo>/pr<number>/<token>`. The token is
