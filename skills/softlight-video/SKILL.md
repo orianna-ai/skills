@@ -28,12 +28,12 @@ with them first, and look over `git status` for anything that shouldn't leave th
 
 ## Film the branch
 
-Run `film_branch.sh` from this skill's directory, inside the checkout. Say what to show if you know
+Run `make_video.sh` from this skill's directory, inside the checkout. Say what to show if you know
 it. You usually do, from the work you just did:
 
 ```bash
-<skill dir>/film_branch.sh "Show the new bulk-edit flow on the invoices page"
-<skill dir>/film_branch.sh    # films the change against origin's default branch
+<skill dir>/make_video.sh "Show the new bulk-edit flow on the invoices page"
+<skill dir>/make_video.sh    # films the change against origin's default branch
 ```
 
 | Exit | stdout        | stderr                                                                 |
