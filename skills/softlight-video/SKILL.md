@@ -2,11 +2,11 @@
 name: softlight-video
 description: >-
   Have Softlight make a demo video of the local branch, uncommitted changes included, without
-  opening a pull request. Use when someone asks for a Softlight video or demo of the work in their
-  checkout ("make a Softlight video of this branch", "film my changes", "show me what this looks
-  like before I open a PR"). Pushes the branch to a hidden refs/softlight/challenge/... ref and
-  prints a demo page that fills in once the video is made. For a change that already has a pull
-  request, use softlight-walkthrough instead.
+  opening a pull request. Use when someone asks for a video or demo of the work in their checkout
+  ("make a video of this branch", "film my changes", "show me what this looks like before I open a
+  PR"). Pushes the branch to a hidden refs/softlight/challenge/... ref and prints a demo page that
+  fills in once the video is made. For a change that already has a pull request, use
+  softlight-walkthrough instead.
 ---
 
 # softlight-video
