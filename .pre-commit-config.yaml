@@ -1,0 +1,60 @@
+repos:
+  # Bash
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.5
+    hooks:
+      - id: shellcheck
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.8.0-1
+    hooks:
+      - id: shfmt
+        args:
+          - --write
+          - --simplify
+          - --indent=2
+          - --case-indent
+          - --binary-next-line
+  # Common
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-vcs-permalinks
+      - id: destroyed-symlinks
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: no-commit-to-branch
+      - id: trailing-whitespace
+  # GitHub
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+  - repo: https://github.com/sirosen/check-jsonschema
+    rev: 0.37.4
+    hooks:
+      - id: check-github-workflows
+  # Markdown
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.9
+    hooks:
+      - id: prettier
+        types_or: [markdown]
+  # YAML
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+  - repo: https://github.com/google/yamlfmt
+    rev: v0.21.0
+    hooks:
+      - id: yamlfmt
