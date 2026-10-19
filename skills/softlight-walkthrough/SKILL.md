@@ -111,12 +111,11 @@ The script reads two sources in order. You can read them yourself.
 
    It returns JSON like `{"state": "ready", "url": "https://app.softlight.com/demo/...", ...}`. A
    `ready` state means `url` is the walkthrough. Any other state is one of those in the table above.
+   A `401` means Softlight keeps that repository behind sign-in, so give the user the waiting page
+   to open in a browser where they're signed in to Softlight.
 
 The video file is the `src` of the share page's `<video id="v">` element:
 
 ```bash
 curl -sSL <share page> | grep -oE '<video[^>]* id="v"[^>]*>' | grep -oE 'src="[^"]+"'
 ```
-
-A `401` means Softlight keeps that repository behind sign-in, so give the user the waiting page to
-open in a browser where they're signed in to Softlight.
