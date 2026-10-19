@@ -1,5 +1,5 @@
 ---
-name: softlight-branch-video
+name: softlight-video
 description: >-
   Have Softlight make a demo video of the local branch, uncommitted changes included, without
   opening a pull request. Use when someone asks for a Softlight video or demo of the work in their
@@ -9,7 +9,7 @@ description: >-
   request, use softlight-walkthrough instead.
 ---
 
-# softlight-branch-video
+# softlight-video
 
 Softlight films a walkthrough of every pull request on its own (see `softlight-walkthrough`). For
 work that isn't in a pull request yet, this skill hands it to Softlight's demo maker:
