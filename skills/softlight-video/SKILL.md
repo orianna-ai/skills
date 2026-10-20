@@ -4,9 +4,9 @@ description: >-
   Have Softlight make a demo video of the local branch, uncommitted changes included, without
   opening a pull request. Use when someone asks for a video or demo of the work in their checkout
   ("make a video of this branch", "film my changes", "show me what this looks like before I open a
-  PR"). Pushes the branch to a hidden refs/softlight/challenge/... ref and prints a demo page that
-  fills in once the video is made. For a change that already has a pull request, use
-  softlight-walkthrough instead.
+  PR"). Pushes the branch to a softlight/<nonce> branch and prints a demo page that fills in once
+  the video is made. For a change that already has a pull request, use softlight-walkthrough
+  instead.
 ---
 
 # softlight-video
@@ -14,10 +14,10 @@ description: >-
 Softlight films a walkthrough of every pull request on its own (see `softlight-walkthrough`). For
 work that isn't in a pull request yet, this skill hands it to Softlight's demo maker:
 
-1. It pushes the branch to origin as `refs/softlight/challenge/<nonce>`, a ref outside
-   `refs/heads/`, so it never shows up as a branch. Uncommitted and untracked changes go with it,
-   snapshotted into a commit on top of `HEAD` without touching the branch, the index or the working
-   tree. Files `.gitignore` excludes stay behind.
+1. It pushes the branch to origin as a new branch, `softlight/<nonce>`. The random nonce is what
+   shows Softlight the request comes from someone who can push to the repository. Uncommitted and
+   untracked changes go with it, snapshotted into a commit on top of `HEAD` without touching the
+   local branch, the index or the working tree. Files `.gitignore` excludes stay behind.
 2. It asks Softlight for a demo page of that ref. Softlight checks the ref out, plans the videos and
    films them.
 3. It prints the demo page, `https://app.softlight.com/v/<demo id>`, which shows the progress and
@@ -42,7 +42,7 @@ know it. You usually do, from the work you just did:
 | `2`  | Nothing       | Bad input, a failed push, or Softlight refused or couldn't be reached. |
 
 The script needs `git`, `curl` and `jq`, and origin must be a GitHub repository with the Softlight
-app installed. Softlight's demo maker wants a signed-in maker for now; until the challenge ref
+app installed. Softlight's demo maker wants a signed-in maker for now; until the challenge branch
 counts as one, the script says so and stops after the push.
 
 ## Hand it over

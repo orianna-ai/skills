@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# Push the local branch to a Softlight challenge ref and have Softlight make a demo video of it.
+# Push the local branch to a Softlight challenge branch and have Softlight make a demo video of it.
 #
 #   generate_video.sh [what to show]
 #
-# The branch is pushed to origin as refs/softlight/challenge/<nonce>, so it never shows up as a
-# branch. Uncommitted and untracked changes go with it (files .gitignore excludes stay behind): they
-# are snapshotted into a commit on top of HEAD without touching the branch, the index or the working
-# tree. Softlight checks the ref out and films it, and knowing it exists is what shows Softlight the
-# request comes from someone who can read the repository.
+# The branch is pushed to origin as softlight/<nonce>, a new branch named after a random nonce.
+# Uncommitted and untracked changes go with it (files .gitignore excludes stay behind): they are
+# snapshotted into a commit on top of HEAD without touching the local branch, the index or the
+# working tree. Softlight checks the branch out and films it, and the nonce only the pusher knows is
+# what shows Softlight the request comes from someone who can push to the repository.
 #
 # "What to show" is the request Softlight films. It defaults to the change against origin's default
 # branch.
@@ -90,11 +90,11 @@ if [[ -n "$(git -C "${top}" status --porcelain)" ]]; then
 fi
 readonly sha
 
-# --- Push the challenge ref -----------------------------------------------------------------------
+# --- Push the challenge branch --------------------------------------------------------------------
 
 nonce="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
 readonly nonce
-readonly ref="refs/softlight/challenge/${nonce}"
+readonly ref="refs/heads/softlight/${nonce}"
 git push --quiet origin "${sha}:${ref}" || die "couldn't push ${ref} to origin"
 
 # --- Ask Softlight to film it ---------------------------------------------------------------------
