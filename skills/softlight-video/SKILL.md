@@ -5,8 +5,8 @@ description: >-
   opening a pull request. Use when someone asks for a video or demo of the work in their checkout
   ("make a video of this branch", "film my changes", "show me what this looks like before I open a
   PR"). Pushes the branch to a softlight/<nonce> branch and prints a demo page that fills in once
-  the video is made. For a change that already has a pull request, use
-  softlight-walkthrough instead.
+  the video is made. For a change that already has a pull request, use softlight-walkthrough
+  instead.
 ---
 
 # softlight-video
