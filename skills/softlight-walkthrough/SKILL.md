@@ -30,9 +30,9 @@ video is still being made.
   below for the direct link. This replaces building, running or screenshotting the app.
 - **You just opened or pushed to a PR**: the reply with the PR link must also give the walkthrough
   link. The video takes about five minutes to land, so run the script with `--wait`, which polls
-  until it's published. If you can run a command in the background and be told when it finishes,
-  do that: give the PR link now, saying the walkthrough link follows, and post the link once the
-  script prints it. Otherwise wait for the script before you reply.
+  until it's published. If you can run a command in the background and be told when it finishes, do
+  that: give the PR link now, saying the walkthrough link follows, and post the link once the script
+  prints it. Otherwise wait for the script before you reply.
 
 ## Get the link
 
@@ -62,15 +62,15 @@ don't swap it for a link of your own.
 
 ## When there's no link yet
 
-| State        | What it means                                      | What to do                                                        |
-| ------------ | -------------------------------------------------- | ----------------------------------------------------------------- |
-| `queued`     | The PR is new and Softlight hasn't started on it.  | Run the script with `--wait`. Tell the user the video is coming.  |
-| `indexing`   | Softlight is indexing the repository first.        | Same as `queued`.                                                 |
-| `running`    | The review is running and the video isn't out yet. | Same as `queued`.                                                 |
-| `video_only` | The PR plays a video but has no share page.        | Tell the user the video is in the PR description.                 |
-| `merged`     | The PR merged without a walkthrough.               | Tell the user there's no walkthrough.                             |
-| `none`       | Softlight didn't film this PR.                     | Tell the user there's no walkthrough.                             |
-| `unknown`    | GitHub didn't answer just now.                     | Run the script again in a few seconds.                            |
+| State        | What it means                                      | What to do                                                       |
+| ------------ | -------------------------------------------------- | ---------------------------------------------------------------- |
+| `queued`     | The PR is new and Softlight hasn't started on it.  | Run the script with `--wait`. Tell the user the video is coming. |
+| `indexing`   | Softlight is indexing the repository first.        | Same as `queued`.                                                |
+| `running`    | The review is running and the video isn't out yet. | Same as `queued`.                                                |
+| `video_only` | The PR plays a video but has no share page.        | Tell the user the video is in the PR description.                |
+| `merged`     | The PR merged without a walkthrough.               | Tell the user there's no walkthrough.                            |
+| `none`       | Softlight didn't film this PR.                     | Tell the user there's no walkthrough.                            |
+| `unknown`    | GitHub didn't answer just now.                     | Run the script again in a few seconds.                           |
 
 If `--wait` runs out with the video still on its way, tell the user it isn't ready yet and offer to
 check again. Don't give them a waiting page in its place.
@@ -93,5 +93,5 @@ The script reads two sources in order. You can read them yourself.
 
    It returns JSON like `{"state": "ready", "url": "https://app.softlight.com/demo/...", ...}`. A
    `ready` state means `url` is the walkthrough. Any other state is one of those in the table above.
-   A `401` means Softlight keeps that repository behind sign-in, so the link can't be looked up
-   from here. Tell the user to open the PR's Softlight check from a browser signed in to Softlight.
+   A `401` means Softlight keeps that repository behind sign-in, so the link can't be looked up from
+   here. Tell the user to open the PR's Softlight check from a browser signed in to Softlight.
