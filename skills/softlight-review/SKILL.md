@@ -2,8 +2,8 @@
 name: softlight-review
 description: >-
   Have Softlight review the local work, uncommitted changes included, even when it isn't on a pull
-  request or is sitting on main. Use when someone asks for a Softlight review, a design review or
-  UX feedback on what's in their checkout ("run softlight on this", "get a softlight review of my
+  request or is sitting on main. Use when someone asks for a Softlight review, a design review or UX
+  feedback on what's in their checkout ("run softlight on this", "get a softlight review of my
   changes", "have softlight look at what I just did on main"). Works out what to compare against
   (where the branch forked, the commits not pushed yet, or the user's own latest commits on main),
   pushes the work and that base as softlight/<nonce> branches, and opens a throwaway draft pull
@@ -33,11 +33,11 @@ that shouldn't leave the machine.
 
 Without `--base`, the script works it out:
 
-| Where `HEAD` is                                  | Base                                                                |
-| ------------------------------------------------ | ------------------------------------------------------------------- |
-| A feature branch                                 | Where it forked from origin's default branch                        |
-| The default branch, with commits not pushed yet  | origin's copy of the default branch                                 |
-| The default branch, all pushed, uncommitted work | `HEAD`, so only the uncommitted changes                             |
+| Where `HEAD` is                                  | Base                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
+| A feature branch                                 | Where it forked from origin's default branch                         |
+| The default branch, with commits not pushed yet  | origin's copy of the default branch                                  |
+| The default branch, all pushed, uncommitted work | `HEAD`, so only the uncommitted changes                              |
 | The default branch, all pushed and clean         | The parent of the unbroken run of commits at the tip by `user.email` |
 
 Pass `--base <rev>` whenever you know better, which you often do from the work in this session: if
@@ -57,10 +57,10 @@ know it; it goes in the pull request's description:
 <skill dir>/open_review.sh --ready            # ready for review rather than a draft
 ```
 
-| Exit | stdout                                         | stderr                                                                       |
-| ---- | ---------------------------------------------- | ---------------------------------------------------------------------------- |
-| `0`  | The pull request, then its walkthrough page    | `gh`'s own progress, if any.                                                 |
-| `2`  | Nothing                                        | Bad input, nothing to review, a failed push, or GitHub refused the pull request. |
+| Exit | stdout                                      | stderr                                                                           |
+| ---- | ------------------------------------------- | -------------------------------------------------------------------------------- |
+| `0`  | The pull request, then its walkthrough page | `gh`'s own progress, if any.                                                     |
+| `2`  | Nothing                                     | Bad input, nothing to review, a failed push, or GitHub refused the pull request. |
 
 The script needs `git` and a signed-in `gh`, and origin must be a GitHub repository with the
 Softlight app installed. The pull request is opened as whoever `gh` is signed in as, and Softlight
