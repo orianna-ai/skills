@@ -35,7 +35,8 @@ die() {
   exit 2
 }
 
-base_rev="" draft="--draft" request=""
+base_rev="" request=""
+draft=(--draft)
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h | --help)
@@ -52,7 +53,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --ready)
-      draft=""
+      draft=()
       shift
       ;;
     -*) die "${USAGE}" ;;
@@ -119,13 +120,13 @@ elif [[ -n ${dirty} ]]; then
   why="HEAD, before the uncommitted changes"
 else
   # Everything is pushed: take the run of commits at the tip that are the user's own.
-  email="$(git config --get user.email)" || die "everything on ${default} is pushed and user.email is unset; pass --base"
+  email="$(git config --get user.email | tr "[:upper:]" "[:lower:]")" || die "everything on ${default} is pushed and user.email is unset; pass --base"
   base="" count=0
   while read -r sha author; do
-    [[ ${author,,} == "${email,,}" ]] || break
+    [[ ${author} == "${email}" ]] || break
     count=$((count + 1))
     base="$(git rev-parse --verify --quiet "${sha}^")" || die "the look-back reached the root commit; pass --base"
-  done < <(git log --first-parent --max-count="${LOOK_BACK}" --format='%H %ae' "${head}")
+  done < <(git log --first-parent --max-count="${LOOK_BACK}" --format='%H %ae' "${head}" | tr "[:upper:]" "[:lower:]")
   [[ -n ${base} ]] || die "the last commit on ${default} isn't by ${email}; pass --base"
   why="before the last ${count} commit(s) on ${default} by ${email}"
 fi
@@ -179,9 +180,8 @@ ${request:+
 ${request:0:4000}}
 EOF
 )"
-# shellcheck disable=SC2086 # ${draft} is a flag or nothing
 url="$(
-  gh pr create --repo "${owner}/${repo}" ${draft} \
+  gh pr create --repo "${owner}/${repo}" ${draft[@]+"${draft[@]}"} \
     --base "${base_branch}" --head "${head_branch}" --title "${title:0:250}" --body "${body}"
 )" || {
   git push --quiet origin --delete "${head_branch}" "${base_branch}" || true
