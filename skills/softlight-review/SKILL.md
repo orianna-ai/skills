@@ -1,33 +1,35 @@
 ---
 name: softlight-review
 description: >-
-  Have Softlight review the local work, uncommitted changes included, even when it isn't on a pull
-  request or is sitting on main. Use when someone asks for a Softlight review, a design review or UX
+  Have Softlight review the local work, uncommitted changes included, without a pull request, even
+  when it is sitting on main. Use when someone asks for a Softlight review, a design review or UX
   feedback on what's in their checkout ("run softlight on this", "get a softlight review of my
   changes", "have softlight look at what I just did on main"). Works out what to compare against
   (where the branch forked, the commits not pushed yet, or the user's own latest commits on main),
-  pushes the work and that base as softlight/<nonce> branches, and opens a throwaway draft pull
-  request between them that softlight[bot] reviews. For a change that already has a pull request,
-  Softlight reviews it on its own; use softlight-walkthrough to see it.
+  pushes the work to a softlight/<nonce> branch and prints a page that shows the review once it's
+  done. For a change that already has a pull request, Softlight reviews it on its own; use
+  softlight-walkthrough to see it.
 ---
 
 # softlight-review
 
-Softlight only reviews pull requests: `softlight[bot]` reviews each one when it opens and again on
-every push. Work in a checkout often isn't on one, or is on `main`, where there's no pull request to
-open. This skill makes one that holds exactly the work:
+Softlight reviews every pull request on its own. For work that isn't on one, or is on `main`, this
+skill asks Softlight for the same review with no pull request:
 
 1. It picks the **base**, the commit the work is compared against (see below).
-2. It pushes two branches to origin: `softlight/<nonce>` holds the work and `softlight/<nonce>-base`
-   holds the base. Uncommitted and untracked changes go with the work, snapshotted into a commit on
-   top of `HEAD` without touching the local branch, the index or the working tree. Files
-   `.gitignore` excludes stay behind.
-3. It opens a draft pull request from the first into the second, so the diff Softlight reviews is
-   exactly base → work, and prints it with its Softlight walkthrough page.
+2. It pushes the work to origin as a new branch, `softlight/<nonce>`. The random nonce is what shows
+   Softlight the request comes from someone who can push to the repository. Uncommitted and
+   untracked changes go with it, snapshotted into a commit on top of `HEAD` without touching the
+   local branch, the index or the working tree. Files `.gitignore` excludes stay behind.
+3. It asks Softlight to review the change from the base to that branch. Softlight runs the full
+   review a pull request gets, as a dry run: it always runs, whatever would gate a pull request's
+   review, and posts nothing anywhere.
+4. It prints the review's page, `https://app.softlight.com/branch-review/<review id>`, which says
+   it's reviewing and then shows the overview, the walkthrough video and every comment the review
+   would have left.
 
-Pushing sends the local changes to the repository's remote and opens a pull request others can see.
-If the user hasn't asked for that, check with them first, and look over `git status` for anything
-that shouldn't leave the machine.
+Pushing sends the local changes to the repository's remote. If the user hasn't asked for that, check
+with them first, and look over `git status` for anything that shouldn't leave the machine.
 
 ## Pick the base
 
@@ -46,43 +48,31 @@ when the last row finds nothing (someone else committed on top) or finds too muc
 commits from last week run straight into today's). Read `git log --oneline -20` to decide where the
 work starts. The base must be an ancestor of `HEAD`.
 
-## Open the review
+## Start the review
 
-Run `open_review.sh` from this skill's directory, inside the checkout. Say what to focus on if you
-know it; it goes in the pull request's description:
+Run `start_review.sh` from this skill's directory, inside the checkout. Say what to focus on if you
+know it:
 
 ```bash
-<skill dir>/open_review.sh "The new bulk-edit flow on the invoices page"
-<skill dir>/open_review.sh --base HEAD~3      # exactly the last three commits
-<skill dir>/open_review.sh --ready            # ready for review rather than a draft
+<skill dir>/start_review.sh "The new bulk-edit flow on the invoices page"
+<skill dir>/start_review.sh --base HEAD~3      # exactly the last three commits
 ```
 
-| Exit | stdout                                      | stderr                                                                           |
-| ---- | ------------------------------------------- | -------------------------------------------------------------------------------- |
-| `0`  | The pull request, then its walkthrough page | `gh`'s own progress, if any.                                                     |
-| `2`  | Nothing                                     | Bad input, nothing to review, a failed push, or GitHub refused the pull request. |
+| Exit | stdout          | stderr                                                                                    |
+| ---- | --------------- | ----------------------------------------------------------------------------------------- |
+| `0`  | The review page | The base it compared against, and why.                                                    |
+| `2`  | Nothing         | Bad input, nothing to review, a failed push, or Softlight refused or couldn't be reached. |
 
-The script needs `git` and a signed-in `gh`, and origin must be a GitHub repository with the
-Softlight app installed. The pull request is opened as whoever `gh` is signed in as, and Softlight
-applies its usual rules to it: an author it doesn't review for, or a change with no visible UI, gets
-no review. Draft pull requests are reviewed unless the organization turned that off; pass `--ready`
-if it did.
+The script needs `git`, `curl` and `jq`, and origin must be a GitHub repository with the Softlight
+app installed. Softlight's branch reviews take a signed-in maker or a repository that accepts
+challenge branches; otherwise the script says so and stops after the push.
 
 ## Hand it over
 
-The review takes several minutes, so don't wait on it. Give the user the pull request link and,
-under it, the walkthrough page, labelled as still running, for example "Softlight review (running,
-ready in a few minutes):". The review lands as comments on the pull request; the walkthrough page
-shows the video once it's made (`softlight-walkthrough` can check on it).
+A review takes 15 to 30 minutes, so don't wait on it. Paste the review page bare, on its own line,
+labelled as still running, for example "Softlight review (running, ready in 15 to 30 minutes):"
+followed by the link, and say what it compared against. Tell the user that's what it is: a page that
+refreshes itself until the review is done, then shows what Softlight found.
 
-If Softlight skips it (the "Softlight Review" check says so), a human commenting `@softlight` on the
-pull request runs it anyway. A comment from a bot token is ignored.
-
-Each run opens a new pull request on the work as it is at that moment. Close the old one and run it
-again after more changes rather than reusing it. When the user is done with it, close it and delete
-both branches:
-
-```bash
-gh pr close <number> --delete-branch
-git push origin --delete softlight/<nonce>-base
-```
+Each run pushes a new ref and reviews the work as it is at that moment. Run it again after more
+changes rather than reusing an old link.

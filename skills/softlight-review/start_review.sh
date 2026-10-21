@@ -1,32 +1,33 @@
 #!/usr/bin/env bash
 #
-# Push the local work and open a throwaway draft pull request that Softlight reviews.
+# Push the local work to a Softlight challenge branch and have Softlight review it, no pull request.
 #
-#   open_review.sh [--base <rev>] [--ready] [what to focus on]
+#   start_review.sh [--base <rev>] [what to focus on]
 #
-# Softlight reviews pull requests, so this pushes two branches to origin and opens one into the
-# other: softlight/<nonce> holds the work (uncommitted and untracked changes included, snapshotted
-# into a commit on top of HEAD without touching the local branch, the index or the working tree) and
-# softlight/<nonce>-base holds the commit it is compared against. Without --base, the base is:
+# The work is pushed to origin as softlight/<nonce>, a new branch named after a random nonce.
+# Uncommitted and untracked changes go with it (files .gitignore excludes stay behind): they are
+# snapshotted into a commit on top of HEAD without touching the local branch, the index or the
+# working tree. Softlight reviews the change from the base to that branch the way it reviews a pull
+# request, as a dry run that posts nothing, and the nonce only the pusher knows is what shows
+# Softlight the request comes from someone who can push to the repository. Without --base, the
+# base is:
 #
 #   on a feature branch   where it forked from origin's default branch
 #   on the default branch with unpushed commits: where it forked from origin's copy
 #                         with only uncommitted changes: HEAD
 #                         otherwise: the parent of the run of commits at the tip by user.email
 #
-# --ready opens the pull request ready for review instead of as a draft.
-#
 # Exit status:
-#   0  the pull request is open; its URL and its Softlight walkthrough page are on stdout
-#   2  bad input, nothing to review, the push failed, or GitHub refused the pull request
+#   0  Softlight took the request; the review's page, which shows it once it's done, is on stdout
+#   2  bad input, nothing to review, the push failed, or Softlight refused or could not be reached
 #
-# Requires git and gh (signed in). Set SOFTLIGHT_BASE_URL to point at another Softlight deployment.
+# Requires git, curl and jq. Set SOFTLIGHT_BASE_URL to point at another Softlight deployment.
 
 set -euo pipefail
 
 BASE_URL="${SOFTLIGHT_BASE_URL:-https://app.softlight.com}"
 readonly BASE_URL="${BASE_URL%/}"
-readonly USAGE="usage: open_review.sh [--base <rev>] [--ready] [what to focus on]"
+readonly USAGE="usage: start_review.sh [--base <rev>] [what to focus on]"
 # how far back the look-back on the default branch goes
 readonly LOOK_BACK=100
 
@@ -36,11 +37,10 @@ die() {
 }
 
 base_rev="" request=""
-draft=(--draft)
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h | --help)
-      sed -n '3,25s/^# \{0,1\}//p' "$0"
+      sed -n '3,24s/^# \{0,1\}//p' "$0"
       exit 0
       ;;
     --base)
@@ -52,10 +52,6 @@ while [[ $# -gt 0 ]]; do
       base_rev="${1#--base=}"
       shift
       ;;
-    --ready)
-      draft=()
-      shift
-      ;;
     -*) die "${USAGE}" ;;
     *)
       [[ -z ${request} ]] || die "${USAGE}"
@@ -64,9 +60,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-readonly draft request
+readonly request
 command -v git >/dev/null || die "git is required"
-command -v gh >/dev/null || die "gh is required"
+command -v curl >/dev/null || die "curl is required"
+command -v jq >/dev/null || die "jq is required"
 
 # --- Which repository -----------------------------------------------------------------------------
 
@@ -155,39 +152,40 @@ readonly sha
 git merge-base --is-ancestor "${base}" "${sha}" || die "${base:0:12} isn't an ancestor of the work; pass a --base it grew from"
 [[ "$(git rev-parse "${base}^{tree}")" != "$(git rev-parse "${sha}^{tree}")" ]] \
   || die "nothing to review: the work is the same as ${base:0:12} (${why})"
-commits="$(git rev-list --count "${base}..${sha}")"
-readonly commits
 
-# --- Push both branches ---------------------------------------------------------------------------
+# --- Push the challenge branch --------------------------------------------------------------------
 
+# The base is an ancestor of the work, so pushing the work puts the base on origin too.
 nonce="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
 readonly nonce
-readonly head_branch="softlight/${nonce}" base_branch="softlight/${nonce}-base"
-git push --quiet --atomic origin "${sha}:refs/heads/${head_branch}" "${base}:refs/heads/${base_branch}" \
-  || die "couldn't push ${head_branch} and ${base_branch} to origin"
+readonly ref="refs/heads/softlight/${nonce}"
+git push --quiet origin "${sha}:${ref}" || die "couldn't push ${ref} to origin"
 
-# --- Open the pull request ------------------------------------------------------------------------
+# --- Ask Softlight to review it -------------------------------------------------------------------
 
-title="Softlight review: ${branch:-${head:0:12}} ($(git log -1 --format=%s "${head}"))"
+readonly REVIEWS="${BASE_URL}/api/branch-reviews"
 body="$(
-  cat <<EOF
-A throwaway pull request so Softlight reviews local work. Don't merge it: close it when you're done,
-and delete \`${base_branch}\`.
-
-- **Work:** \`${branch:-${head:0:12}}\` at \`${head:0:12}\`${dirty:+ plus uncommitted changes}
-- **Compared against:** \`${base:0:12}\`, ${why} (${commits} commit(s))
-${request:+
-${request:0:4000}}
-EOF
+  jq -n --arg repository "${owner}/${repo}" --arg ref "${ref}" --arg base "${base}" \
+    --arg request "${request:0:4000}" \
+    '{repository: $repository, ref: $ref, base: $base, request: $request}'
 )"
-url="$(
-  gh pr create --repo "${owner}/${repo}" ${draft[@]+"${draft[@]}"} \
-    --base "${base_branch}" --head "${head_branch}" --title "${title:0:250}" --body "${body}"
-)" || {
-  git push --quiet origin --delete "${head_branch}" "${base_branch}" || true
-  die "GitHub wouldn't open the pull request; removed ${head_branch} and ${base_branch}"
-}
-url="$(tail -n1 <<<"${url}")"
-[[ ${url} =~ /pull/([0-9]+)$ ]] || die "gh answered without a pull request URL: ${url}"
+response="$(
+  curl --silent --show-error --max-time 30 \
+    --header 'Content-Type: application/json' --data "${body}" \
+    --write-out '\n%{http_code}' "${REVIEWS}"
+)" || die "could not reach ${REVIEWS}"
+code="${response##*$'\n'}"
+body="${response%$'\n'*}"
+detail="$(jq -r '.detail // empty | tostring' <<<"${body}" 2>/dev/null)" || detail="${body:0:300}"
+
+case "${code}" in
+  200) ;;
+  401) die "Softlight wants a signed-in maker (${detail}); pushed ${ref} anyway" ;;
+  403) die "Softlight won't review ${owner}/${repo}: ${detail}" ;;
+  *) die "${REVIEWS} answered HTTP ${code}: ${detail}" ;;
+esac
+
+url="$(jq -r '.url // empty' <<<"${body}" 2>/dev/null)" || url=""
+[[ -n ${url} ]] || die "${REVIEWS} answered without a url: ${body:0:300}"
+echo "Comparing against ${base:0:12}: ${why}" >&2
 echo "${url}"
-echo "${BASE_URL}/api/softlight/walkthrough/${owner}/${repo}/${BASH_REMATCH[1]}"
