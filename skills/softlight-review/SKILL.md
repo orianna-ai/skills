@@ -58,9 +58,9 @@ know it:
 <skill dir>/start_review.sh --base HEAD~3      # exactly the last three commits
 ```
 
-| Exit | stdout          | stderr                                                                                 |
-| ---- | --------------- | -------------------------------------------------------------------------------------- |
-| `0`  | The review page | The base it compared against, and why.                                                 |
+| Exit | stdout          | stderr                                                                                    |
+| ---- | --------------- | ----------------------------------------------------------------------------------------- |
+| `0`  | The review page | The base it compared against, and why.                                                    |
 | `2`  | Nothing         | Bad input, nothing to review, a failed push, or Softlight refused or couldn't be reached. |
 
 The script needs `git`, `curl` and `jq`, and origin must be a GitHub repository with the Softlight
