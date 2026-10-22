@@ -5,8 +5,8 @@ description: >-
   without opening a pull request. Use when someone wants to try or click through the work in their
   checkout ("give me a preview link", "spin up a preview of this branch", "let me click around this
   before I open a PR", "boot this so I can try it"). Pushes the branch to a softlight/<nonce> branch
-  and prints a preview page that shows the running app once it boots. For a recorded video instead,
-  use softlight-video; for a change that already has a pull request, use softlight-walkthrough.
+  and prints a preview page that shows the running app once it boots. For a change that already has
+  a pull request, use softlight-walkthrough.
 ---
 
 # softlight-preview
