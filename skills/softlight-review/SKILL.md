@@ -24,11 +24,11 @@ skill asks Softlight for the same review with no pull request:
 3. It asks Softlight to review the change from the base to that branch. Softlight runs the full
    review a pull request gets, as a dry run: it always runs, whatever would gate a pull request's
    review, and posts nothing anywhere.
-4. It prints the review's page, `https://app.softlight.com/branch-review/<review id>`, which is
-   the review's share page: it waits in the share page's layout until the walkthrough's first page
-   is published, then moves onto the share page at its own `app.softlight.com/demo/...` address,
-   which takes in each video and check as the review publishes it. A review that films nothing
-   shows its overview and comments instead.
+4. It prints the review's page, `https://app.softlight.com/branch-review/<review id>`, which is the
+   review's share page: it waits in the share page's layout until the walkthrough's first page is
+   published, then moves onto the share page at its own `app.softlight.com/demo/...` address, which
+   takes in each video and check as the review publishes it. A review that films nothing shows its
+   overview and comments instead.
 
 Pushing sends the local changes to the repository's remote. If the user hasn't asked for that, check
 with them first, and look over `git status` for anything that shouldn't leave the machine.
