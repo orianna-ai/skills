@@ -24,9 +24,11 @@ skill asks Softlight for the same review with no pull request:
 3. It asks Softlight to review the change from the base to that branch. Softlight runs the full
    review a pull request gets, as a dry run: it always runs, whatever would gate a pull request's
    review, and posts nothing anywhere.
-4. It prints the review's page, `https://app.softlight.com/branch-review/<review id>`, which says
-   it's reviewing and then shows the overview, the walkthrough video and every comment the review
-   would have left.
+4. It prints the review's page, `https://app.softlight.com/branch-review/<review id>`, which is the
+   review's share page: it waits in the share page's layout until the walkthrough's first page is
+   published, then moves onto the share page at its own `app.softlight.com/demo/...` address, which
+   takes in each video and check as the review publishes it. A review that films nothing shows its
+   overview and comments instead.
 
 Pushing sends the local changes to the repository's remote. If the user hasn't asked for that, check
 with them first, and look over `git status` for anything that shouldn't leave the machine.
@@ -71,8 +73,8 @@ challenge branches; otherwise the script says so and stops after the push.
 
 A review takes 15 to 30 minutes, so don't wait on it. Paste the review page bare, on its own line,
 labelled as still running, for example "Softlight review (running, ready in 15 to 30 minutes):"
-followed by the link, and say what it compared against. Tell the user that's what it is: a page that
-refreshes itself until the review is done, then shows what Softlight found.
+followed by the link, and say what it compared against. Tell the user that's what it is: the
+review's share page, which fills in on its own as Softlight films and checks the change.
 
 Each run pushes a new ref and reviews the work as it is at that moment. Run it again after more
 changes rather than reusing an old link.
