@@ -80,15 +80,15 @@ don't swap it for a link of your own.
 
 ## When there's no link yet
 
-| State        | What it means                                      | What to do                                                       |
-| ------------ | -------------------------------------------------- | ---------------------------------------------------------------- |
-| `queued`     | The PR is new and Softlight hasn't started on it.  | Tell the user it's coming and wait in the background (above).    |
-| `indexing`   | Softlight is indexing the repository first.        | Same as `queued`.                                                |
-| `running`    | The review is running and the video isn't out yet. | Same as `queued`.                                                |
-| `video_only` | The PR plays a video but has no share page.        | Tell the user the video is in the PR description.                |
-| `merged`     | The PR merged without a walkthrough.               | Tell the user there's no walkthrough.                            |
-| `none`       | Softlight didn't film this PR.                     | See below.                                                       |
-| `unknown`    | GitHub didn't answer just now.                     | Run the script again in a few seconds.                           |
+| State        | What it means                                      | What to do                                                    |
+| ------------ | -------------------------------------------------- | ------------------------------------------------------------- |
+| `queued`     | The PR is new and Softlight hasn't started on it.  | Tell the user it's coming and wait in the background (above). |
+| `indexing`   | Softlight is indexing the repository first.        | Same as `queued`.                                             |
+| `running`    | The review is running and the video isn't out yet. | Same as `queued`.                                             |
+| `video_only` | The PR plays a video but has no share page.        | Tell the user the video is in the PR description.             |
+| `merged`     | The PR merged without a walkthrough.               | Tell the user there's no walkthrough.                         |
+| `none`       | Softlight didn't film this PR.                     | See below.                                                    |
+| `unknown`    | GitHub didn't answer just now.                     | Run the script again in a few seconds.                        |
 
 If the state is `none` and the link was owed only because you opened or pushed to the PR, say
 nothing about it: leave the walkthrough out of your reply and don't post a follow-up saying there
