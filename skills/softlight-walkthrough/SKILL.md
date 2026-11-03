@@ -41,8 +41,8 @@ and that the walkthrough link is coming instead.
 Once a PR is opened or pushed, Softlight reviews it: the walkthrough lands on the share page after
 about five minutes, then the page's checks run one by one, each passing or finding an issue, until
 the review is complete. Each check is filmed on every device the page offers (desktop, tablet and
-phone), and passes or finds an issue on each one separately. `--watch` follows the page and prints
-a line the moment each of those happens:
+phone), and passes or finds an issue on each one separately. `--watch` follows the page and prints a
+line the moment each of those happens:
 
 ```text
 ready: https://app.softlight.com/demo/acme/web/pr123/AbCdEfGhIjKl
@@ -52,9 +52,9 @@ issue: P1 phone — Opening an empty cart — Empty cart shows a blank page
 complete: 3 issues found, 15 of 18 checks passed
 ```
 
-| Line              | When                                                 | What to tell the user                                                                                       |
-| ----------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `ready: <url>`    | The walkthrough is published.                        | The walkthrough is ready, with the URL on its own line.                                                     |
+| Line              | When                                                 | What to tell the user                                                                                      |
+| ----------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `ready: <url>`    | The walkthrough is published.                        | The walkthrough is ready, with the URL on its own line.                                                    |
 | `issue: <...>`    | A check found an issue on a device, once per device. | What Softlight flagged (the last part, the issue's title), on which device, and its level (`P0` is worst). |
 | `complete: <...>` | The review is over.                                  | The review is complete, how many issues it found, and how many checks passed. Point back to the link.      |
 
@@ -62,17 +62,17 @@ An `issue:` line is `issue: [level ][device ]— <check>[ — <issue>]`: the che
 Softlight was trying, and the issue says what went wrong, so lead with the issue. A page that
 doesn't film on several devices leaves the device out.
 
-The `complete:` line counts every device, the same way the page and Softlight's PR description
-do: one issue per check and device that found one, and `N of M checks passed` across all devices.
-Before you tell the user the count, check it against Softlight's own tally (the PR description's
+The `complete:` line counts every device, the same way the page and Softlight's PR description do:
+one issue per check and device that found one, and `N of M checks passed` across all devices. Before
+you tell the user the count, check it against Softlight's own tally (the PR description's
 `N of M checks passed`, or its summary comment once posted). If they disagree, report Softlight's
 numbers and its list of issues, not the watch's, and say the watch's count was off. Never relay a
 count you haven't checked; an undercount reads as "the rest is fine".
 
 When you report issues, group the ones that share a cause: the same check failing on several
-devices, or several checks failing on one device for one reason, is one problem to fix, not
-several. Say which device each one is on, since a phone-only issue usually has a different fix
-from one that shows everywhere.
+devices, or several checks failing on one device for one reason, is one problem to fix, not several.
+Say which device each one is on, since a phone-only issue usually has a different fix from one that
+shows everywhere.
 
 The watch can take half an hour or more, and it lasts at most an hour (`--watch=SECONDS` to change
 that). Never run it in the foreground of the conversation: it holds the user's turn hostage and they
