@@ -2,11 +2,11 @@
 
 Agent skills for working with Softlight.
 
-| Skill                                                    | What it does                                                                            |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Skill                                                    | What it does                                                                              |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | [`softlight-walkthrough`](skills/softlight-walkthrough/) | Shows a PR's Softlight walkthrough video and follows its review: issues, then completion. |
-| [`softlight-preview`](skills/softlight-preview/)         | Pushes the local branch and has Softlight boot a live preview of it, no PR needed.      |
-| [`softlight-review`](skills/softlight-review/)           | Pushes the local work and has Softlight review it against the right base, no PR needed. |
+| [`softlight-preview`](skills/softlight-preview/)         | Pushes the local branch and has Softlight boot a live preview of it, no PR needed.        |
+| [`softlight-review`](skills/softlight-review/)           | Pushes the local work and has Softlight review it against the right base, no PR needed.   |
 
 ## Install
 
