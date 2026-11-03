@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 #
-# Print the link to a pull request's Softlight walkthrough (its share page).
+# Print the link to a pull request's Softlight walkthrough (its share page), or watch the share
+# page and print each thing that happens on it.
 #
-#   get_walkthrough.sh [--wait[=SECONDS]] <pull request URL | owner/repo#number | number>
+#   get_walkthrough.sh [--wait[=SECONDS] | --watch[=SECONDS]] <pull request URL | owner/repo#number | number>
 #
 # A bare number is read against the current checkout's `origin` remote. With --wait, a pull
 # request whose video is still being made is polled until the walkthrough is published, for at
 # most SECONDS (default 900); use it right after opening or pushing to a pull request.
 #
+# With --watch, the share page is followed until Softlight's review of the pull request is over,
+# for at most SECONDS (default 3600), and every event is printed on stdout, one line each, the
+# moment it happens:
+#   ready: <url>             the walkthrough is published at <url>
+#   issue: [P0|P1|P2 ]<check>  a check on the share page found an issue (once per check)
+#   complete: <summary>      the review is over; the summary counts the issues found
+# Each line stands on its own, so the output can be streamed to whoever is waiting on it.
+#
 # Exit status:
-#   0  the walkthrough URL is on stdout
-#   1  there is no walkthrough (yet); its state and what that means are on stderr
+#   0  the walkthrough URL is on stdout (with --watch: the review completed)
+#   1  there is no walkthrough (yet), or (with --watch) the review stopped or ran out of time;
+#      what happened is on stderr
 #   2  bad input, or Softlight could not be read
 #
 # The link comes from the first of these that has it:
@@ -18,13 +28,13 @@
 #      walkthrough once it is published. Read with `gh`; skipped when gh is missing or signed out.
 #   2. Softlight's status endpoint for the pull request, which needs no credentials.
 #
-# Requires curl and jq. Set SOFTLIGHT_BASE_URL to point at another Softlight deployment.
+# Requires curl, jq and awk. Set SOFTLIGHT_BASE_URL to point at another Softlight deployment.
 
 set -euo pipefail
 
 BASE_URL="${SOFTLIGHT_BASE_URL:-https://app.softlight.com}"
 readonly BASE_URL="${BASE_URL%/}"
-readonly USAGE="usage: get_walkthrough.sh [--wait[=SECONDS]] <pull request URL | owner/repo#number | number>"
+readonly USAGE="usage: get_walkthrough.sh [--wait[=SECONDS] | --watch[=SECONDS]] <pull request URL | owner/repo#number | number>"
 readonly POLL_SECONDS=20
 
 die() {
@@ -38,9 +48,10 @@ no_walkthrough() {
 }
 
 wait_seconds=0
+watch=false
 case "${1:-}" in
   -h | --help)
-    sed -n '3,22s/^# \{0,1\}//p' "$0"
+    sed -n '3,33s/^# \{0,1\}//p' "$0"
     exit 0
     ;;
   --wait)
@@ -52,12 +63,24 @@ case "${1:-}" in
     [[ ${wait_seconds} =~ ^[0-9]+$ ]] || die "--wait takes a number of seconds: $1"
     shift
     ;;
+  --watch)
+    watch=true
+    wait_seconds=3600
+    shift
+    ;;
+  --watch=*)
+    watch=true
+    wait_seconds="${1#--watch=}"
+    [[ ${wait_seconds} =~ ^[0-9]+$ ]] || die "--watch takes a number of seconds: $1"
+    shift
+    ;;
   *) ;;
 esac
-readonly wait_seconds
+readonly wait_seconds watch
 [[ $# -eq 1 && -n $1 ]] || die "${USAGE}"
 command -v curl >/dev/null || die "curl is required"
 command -v jq >/dev/null || die "jq is required"
+command -v awk >/dev/null || die "awk is required"
 
 # --- Which pull request ---------------------------------------------------------------------------
 
@@ -85,11 +108,11 @@ readonly share_prefix
 
 # --- Look it up ----------------------------------------------------------------------------------
 
-# Prints the walkthrough URL and returns 0 once it is published. Returns 1 with the reason in
+# Sets `url` to the walkthrough and returns 0 once it is published. Returns 1 with the reason in
 # `pending` while the video is still on its way, and exits for every answer that waiting won't
 # change.
 look_up() {
-  local links link response code body parsed state url
+  local links link response code body parsed state
 
   # 1. The Softlight check run. Until the video is published, the check links to a signed /v/
   # address that opens a waiting page, so only a share page counts.
@@ -103,7 +126,7 @@ look_up() {
     )" || links=""
     while IFS= read -r link; do
       if [[ ${link} == "${share_prefix}"* ]]; then
-        echo "${link}"
+        url="${link}"
         return 0
       fi
     done <<<"${links}"
@@ -129,7 +152,6 @@ look_up() {
   IFS=$'\t' read -r state url <<<"${parsed}"
 
   if [[ ${state} == ready && -n ${url} ]]; then
-    echo "${url}"
     return 0
   fi
 
@@ -156,12 +178,127 @@ look_up() {
 
 pending=""
 deadline=$((SECONDS + wait_seconds))
+url=""
 until look_up; do
   if ((SECONDS + POLL_SECONDS > deadline)); then
     if ((wait_seconds > 0)); then
       no_walkthrough "${pending}; still not published after ${wait_seconds}s, run this again later"
     fi
     no_walkthrough "${pending}; run this again with --wait to wait for the video"
+  fi
+  sleep "${POLL_SECONDS}"
+done
+
+if ! ${watch}; then
+  echo "${url}"
+  exit 0
+fi
+echo "ready: ${url}"
+
+# --- Watch the share page -------------------------------------------------------------------------
+
+# The checks the share page lists (its #videos list, the same one the page counts its issues
+# from), one per line: "<result>\t<check>", where the result is "passed", "running", or "issue"
+# followed by the issue's level when it has one ("issue P1"). A check the page shows from a
+# previous run, or one still being filmed, is running: its result isn't this run's yet.
+page_checks() {
+  awk '
+    { page = page $0 " " }
+    END {
+      start = index(page, "<ol class=\"videos\" id=\"videos\">")
+      if (!start) exit
+      page = substr(page, start)
+      stop = index(page, "</ol>")
+      if (stop) page = substr(page, 1, stop - 1)
+      n = split(page, rows, "<li")
+      for (i = 2; i <= n; i++) {
+        row = rows[i]
+        check = row
+        if (!sub(/.*<span class="lbl">/, "", check)) continue
+        sub(/<\/span>.*/, "", check)
+        gsub(/&lt;/, "<", check)
+        gsub(/&gt;/, ">", check)
+        gsub(/&quot;/, "\"", check)
+        gsub(/&#x27;|&#39;/, "\047", check)
+        gsub(/&amp;/, "\\&", check)
+        # a check not filmed on the device the page shows is not one of its checks there
+        if (row ~ /^[^>]*pd-off/) continue
+        if (row ~ /^[^>]*(pending|prev|pd-run)/ || row ~ /class="mark spin/) {
+          result = "running"
+        } else if (row ~ /class="mark bad/) {
+          result = "issue"
+          if (match(row, /class="mark bad pri[^>]*>P[0-9]</)) {
+            level = substr(row, RSTART, RLENGTH)
+            sub(/.*>/, "", level)
+            sub(/</, "", level)
+            result = result " " level
+          }
+        } else {
+          result = "passed"
+        }
+        print result "\t" check
+      }
+    }'
+}
+
+seen=$'\n'
+while :; do
+  # the review's own state, from the status the share page itself polls
+  parsed="$(
+    curl --silent --max-time 30 --retry 2 "${WALKTHROUGH}/status?rec=1" \
+      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // ""] | join("|")' 2>/dev/null
+  )" || parsed="unknown||||"
+  IFS='|' read -r state run_status conclusion refresh title <<<"${parsed}"
+
+  # the page's checks: print each issue the first time it shows
+  checks="$(curl --silent --location --max-time 30 --retry 2 "${url}" | page_checks)" || checks=""
+  issues=0
+  running=false
+  while IFS=$'\t' read -r result check; do
+    case "${result}" in
+      issue*)
+        issues=$((issues + 1))
+        level="${result#issue}"
+        if [[ ${seen} != *$'\n'"${check}"$'\n'* ]]; then
+          seen+="${check}"$'\n'
+          echo "issue:${level} ${check}"
+        fi
+        ;;
+      running) running=true ;;
+      *) ;;
+    esac
+  done <<<"${checks}"
+
+  # the review is over once its check has concluded and the page shows no check still running
+  settled=false
+  if [[ ${state} == ready ]] && ! ${running}; then
+    if [[ -n ${run_status} ]]; then
+      [[ ${run_status} != completed && ${run_status} != none ]] || settled=true
+    elif [[ -z ${refresh} ]]; then
+      settled=true
+    fi
+  fi
+  if ${settled}; then
+    if [[ ${title} == *Waiting* ]]; then
+      no_walkthrough "stopped: Softlight is waiting until the pull request is ready for review"
+    elif [[ ${title} == *Interrupted* ]]; then
+      no_walkthrough "stopped: Softlight was interrupted before the checks finished"
+    elif [[ ${title} == *Superseded* ]]; then
+      no_walkthrough "stopped: a newer push replaced this run"
+    elif [[ -n ${conclusion} && ${conclusion} != success && ${conclusion} != neutral ]] \
+      && [[ ! ${title} =~ Complete|Not\ Needed|Up\ to\ Date ]]; then
+      no_walkthrough "stopped: ${title:-Softlight stopped before the checks finished}"
+    fi
+    case "${issues}" in
+      0) echo "complete: no issues found" ;;
+      1) echo "complete: 1 issue found" ;;
+      *) echo "complete: ${issues} issues found" ;;
+    esac
+    exit 0
+  fi
+
+  if ((SECONDS + POLL_SECONDS > deadline)); then
+    no_walkthrough "the review is still running after ${wait_seconds}s; run this again with --watch to keep watching"
   fi
   sleep "${POLL_SECONDS}"
 done

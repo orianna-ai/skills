@@ -6,12 +6,14 @@ description: >-
   building, running or screenshotting the app whenever someone asks to see, show, preview or demo a
   PR's change ("show me what it looks like", "what does this change look like?", "can I see it?"),
   or asks for a PR's walkthrough, Softlight video, share page, share link or demo link ("send me the
-  video for #123", "is the Softlight video ready?"). Also use it whenever someone asks you to open,
-  create or push a PR in a repository Softlight reviews (softlight[bot] reviews its PRs): your reply
-  with the PR link must also give the walkthrough's direct /demo/... link, which takes about five
-  minutes to exist, so wait for it with the script's --wait in a background subagent, never in the
-  conversation itself. Takes a PR URL, owner/repo#number, or a bare number in the current checkout,
-  and says why when there's no walkthrough.
+  video for #123", "is the Softlight video ready?"), or asks to watch, follow or be told about a
+  PR's Softlight review ("tell me what Softlight finds", "let me know when the review is done").
+  Also use it whenever someone asks you to open, create or push a PR in a repository Softlight
+  reviews (softlight[bot] reviews its PRs): watch the PR's share page in the background with the
+  script's --watch and speak up three times over the next half hour or so: when the walkthrough is
+  ready (give its direct /demo/... link), each time a check finds an issue, and once the review is
+  complete. Never wait for it in the conversation itself. Takes a PR URL, owner/repo#number, or a
+  bare number in the current checkout, and says why when there's no walkthrough.
 ---
 
 # softlight-walkthrough
@@ -29,28 +31,51 @@ video is still being made.
 
 - **Someone wants to see a change** ("show me what it looks like", "can I see it?"): run the script
   below for the direct link. This replaces building, running or screenshotting the app.
-- **You just opened or pushed to a PR**: the reply with the PR link must also give the walkthrough
-  link. The video takes about five minutes to land, so the link has to be waited for. See
-  [Waiting for the link](#waiting-for-the-link).
+- **You just opened or pushed to a PR**, or someone asks you to follow its review: watch the share
+  page. See [Watching the share page](#watching-the-share-page).
 
-## Waiting for the link
+## Watching the share page
 
-`--wait` polls for up to 15 minutes. Never run it in the foreground of the conversation: it holds
-the user's turn hostage and they can't talk to you until it returns.
+Once a PR is opened or pushed, Softlight reviews it: the walkthrough lands on the share page after
+about five minutes, then the page's checks run one by one, each passing or finding an issue, until
+the review is complete. `--watch` follows the page and prints a line the moment each of those
+happens:
 
-1. Hand the wait to a background subagent (for example, the Agent tool with
-   `run_in_background: true`). Tell it to run `<skill dir>/get_walkthrough.sh --wait <pr>` and to
-   return only the script's exit code, stdout and stderr. Keep its brief to that; it needs nothing
-   else from the conversation.
-2. Without waiting on it, reply now: give the PR link and say the walkthrough link will follow.
-3. When the subagent reports back, post the URL on its own line. If it reports a state instead,
-   follow [When there's no link yet](#when-theres-no-link-yet), but don't start another `--wait`
-   from there; ask the user whether to check again.
+```text
+ready: https://app.softlight.com/demo/acme/web/pr123/AbCdEfGhIjKl
+issue: P1 Checkout total doesn't update after removing a coupon
+issue: Empty cart shows a blank page
+complete: 2 issues found
+```
 
-If you can't start a background subagent, run the script itself as a background command you'll be
-told about when it exits, and follow the same steps. If you can do neither, run the script once
-without `--wait`: give the link if it's ready, and otherwise tell the user the video is still being
-made and offer to fetch the link later. Don't block on `--wait` either way.
+| Line              | When                                    | What to tell the user                                                                     |
+| ----------------- | --------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `ready: <url>`    | The walkthrough is published.           | The walkthrough is ready, with the URL on its own line.                                   |
+| `issue: <check>`  | A check found an issue, once per check. | What Softlight flagged, in a sentence, with its level (`P0` worst) when the line has one. |
+| `complete: <...>` | The review is over.                     | The review is complete and how many issues it found. Point back to the walkthrough link.  |
+
+The watch can take half an hour or more, and it lasts at most an hour (`--watch=SECONDS` to change
+that). Never run it in the foreground of the conversation: it holds the user's turn hostage and they
+can't talk to you until it returns.
+
+1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so that each line it prints reaches you as
+   it's printed: in Claude Code, with the Monitor tool, which streams a background command's output
+   to you line by line. Each line is a separate event; act on each one as it arrives, as in the
+   table above. Don't wait for the next.
+2. Without waiting on it, reply now: give the PR link and say you'll post the walkthrough link when
+   it's ready and tell them what Softlight finds.
+3. When the watch exits without a `complete:` line, read its stderr. A state like `none` follows
+   [When there's no link yet](#when-theres-no-link-yet); `stopped: ...` means the review ended
+   without finishing its checks, so say so in its words; running out of time means the review isn't
+   done yet, so offer to keep watching. Don't start another watch on your own.
+
+If nothing you have streams a command's output line by line, settle for two background runs, each of
+which you'll be told about when it exits: first `--wait <pr>`, for the link (hand over the URL as
+soon as it returns), then `--watch <pr>`, whose issues and completion you report together when it
+exits. A background subagent (the Agent tool with `run_in_background: true`) can run either one:
+tell it to run the command and return only the script's exit code, stdout and stderr. If you can do
+none of these, run the script once without `--wait`: give the link if it's ready, and otherwise tell
+the user the video is still being made and offer to fetch the link later.
 
 ## Get the link
 
@@ -62,6 +87,7 @@ Run `get_walkthrough.sh` from this skill's directory:
 <skill dir>/get_walkthrough.sh 123    # inside a checkout of acme/web
 <skill dir>/get_walkthrough.sh --wait acme/web#123    # poll for up to 15 minutes
 <skill dir>/get_walkthrough.sh --wait=300 acme/web#123
+<skill dir>/get_walkthrough.sh --watch acme/web#123   # follow the share page (see above)
 ```
 
 | Exit | stdout              | stderr                                                         |
@@ -70,8 +96,11 @@ Run `get_walkthrough.sh` from this skill's directory:
 | `1`  | Nothing             | The state and why there's no walkthrough (yet) (see below).    |
 | `2`  | Nothing             | Bad input, a PR Softlight can't see, or Softlight unreachable. |
 
-The script needs `curl` and `jq`. It also uses `gh` when `gh` is installed and authenticated, but it
-works without it.
+With `--watch`, stdout is the event lines above instead, exit `0` means the review completed, and
+exit `1` also covers a review that stopped or outlasted the watch, with which on stderr.
+
+The script needs `curl`, `jq` and `awk`. It also uses `gh` when `gh` is installed and authenticated,
+but it works without it.
 
 ## Hand it over
 
@@ -80,23 +109,23 @@ don't swap it for a link of your own.
 
 ## When there's no link yet
 
-| State        | What it means                                      | What to do                                                    |
-| ------------ | -------------------------------------------------- | ------------------------------------------------------------- |
-| `queued`     | The PR is new and Softlight hasn't started on it.  | Tell the user it's coming and wait in the background (above). |
-| `indexing`   | Softlight is indexing the repository first.        | Same as `queued`.                                             |
-| `running`    | The review is running and the video isn't out yet. | Same as `queued`.                                             |
-| `video_only` | The PR plays a video but has no share page.        | Tell the user the video is in the PR description.             |
-| `merged`     | The PR merged without a walkthrough.               | Tell the user there's no walkthrough.                         |
-| `none`       | Softlight didn't film this PR.                     | See below.                                                    |
-| `unknown`    | GitHub didn't answer just now.                     | Run the script again in a few seconds.                        |
+| State        | What it means                                      | What to do                                                     |
+| ------------ | -------------------------------------------------- | -------------------------------------------------------------- |
+| `queued`     | The PR is new and Softlight hasn't started on it.  | Tell the user it's coming and watch in the background (above). |
+| `indexing`   | Softlight is indexing the repository first.        | Same as `queued`.                                              |
+| `running`    | The review is running and the video isn't out yet. | Same as `queued`.                                              |
+| `video_only` | The PR plays a video but has no share page.        | Tell the user the video is in the PR description.              |
+| `merged`     | The PR merged without a walkthrough.               | Tell the user there's no walkthrough.                          |
+| `none`       | Softlight didn't film this PR.                     | See below.                                                     |
+| `unknown`    | GitHub didn't answer just now.                     | Run the script again in a few seconds.                         |
 
 If the state is `none` and the link was owed only because you opened or pushed to the PR, say
 nothing about it: leave the walkthrough out of your reply and don't post a follow-up saying there
 won't be one. Only tell the user there's no walkthrough when they asked to see the change or asked
 for the link.
 
-If `--wait` runs out with the video still on its way, tell the user it isn't ready yet and offer to
-check again. Don't give them a waiting page in its place.
+If `--wait` or `--watch` runs out with the video still on its way, tell the user it isn't ready yet
+and offer to check again. Don't give them a waiting page in its place.
 
 ## Without the script
 
