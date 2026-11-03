@@ -163,7 +163,7 @@ look_up() {
     indexing) pending="indexing: Softlight is indexing the repository first" ;;
     running) pending="running: the review is running and the video isn't published yet" ;;
     video_only) no_walkthrough "video_only: the pull request plays a video in its description but has no share page" ;;
-    merged) no_walkthrough "merged: the pull request merged without a walkthrough" ;;
+    merged) no_walkthrough "merged: the pull request merged before the video finished recording, so there is no walkthrough" ;;
     none) no_walkthrough "none: Softlight didn't film this pull request" ;;
     *)
       # "unknown" is also what the status endpoint says about a pull request GitHub won't show
@@ -341,9 +341,9 @@ while :; do
   # the review's own state, from the status the share page itself polls
   parsed="$(
     curl --silent --max-time 30 --retry 2 "${WALKTHROUGH}/status?rec=1" \
-      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // ""] | join("|")' 2>/dev/null
-  )" || parsed="unknown||||"
-  IFS='|' read -r state run_status conclusion refresh title <<<"${parsed}"
+      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // ""] | join("|")' 2>/dev/null
+  )" || parsed="unknown|||||"
+  IFS='|' read -r state run_status conclusion refresh title pr_state <<<"${parsed}"
 
   # the page's checks: print each issue the first time it shows
   checks="$(curl --silent --location --max-time 30 --retry 2 "${url}" | page_checks)" || checks=""
@@ -367,31 +367,43 @@ while :; do
     esac
   done <<<"${checks}"
 
-  # the review is over once its check has concluded and the page shows no check still running
+  case "${issues}" in
+    0) summary="no issues found" ;;
+    1) summary="1 issue found" ;;
+    *) summary="${issues} issues found" ;;
+  esac
+
+  # the review is over once its check has concluded and the page shows no check still running.
+  # On a merged or closed pull request, a check still showing as running once the run has
+  # concluded was cut off by the merge and will never be recorded, so it doesn't hold the watch.
+  concluded=false
+  if [[ -n ${run_status} ]]; then
+    [[ ${run_status} != completed && ${run_status} != none ]] || concluded=true
+  elif [[ -z ${refresh} ]]; then
+    concluded=true
+  fi
   settled=false
-  if [[ ${state} == ready ]] && ! ${running}; then
-    if [[ -n ${run_status} ]]; then
-      [[ ${run_status} != completed && ${run_status} != none ]] || settled=true
-    elif [[ -z ${refresh} ]]; then
+  if [[ ${state} == ready ]] && ${concluded}; then
+    if ! ${running} || [[ ${pr_state} == merged || ${pr_state} == closed ]]; then
       settled=true
     fi
   fi
   if ${settled}; then
+    so_far="${summary} before then, ${passed} of $((passed + issues)) checks passed"
     if [[ ${title} == *Waiting* ]]; then
       no_walkthrough "stopped: Softlight is waiting until the pull request is ready for review"
+    elif [[ ${title} == *Interrupted* && ${pr_state} == merged ]]; then
+      no_walkthrough "stopped: the pull request merged before the checks finished; ${so_far}"
     elif [[ ${title} == *Interrupted* ]]; then
-      no_walkthrough "stopped: Softlight was interrupted before the checks finished"
+      no_walkthrough "stopped: Softlight was interrupted before the checks finished; ${so_far}"
     elif [[ ${title} == *Superseded* ]]; then
       no_walkthrough "stopped: a newer push replaced this run"
     elif [[ -n ${conclusion} && ${conclusion} != success && ${conclusion} != neutral ]] \
       && [[ ! ${title} =~ Complete|Not\ Needed|Up\ to\ Date ]]; then
-      no_walkthrough "stopped: ${title:-Softlight stopped before the checks finished}"
+      no_walkthrough "stopped: ${title:-Softlight stopped before the checks finished}; ${so_far}"
+    elif ${running}; then
+      no_walkthrough "stopped: the pull request ${pr_state} before the checks finished; ${so_far}"
     fi
-    case "${issues}" in
-      0) summary="no issues found" ;;
-      1) summary="1 issue found" ;;
-      *) summary="${issues} issues found" ;;
-    esac
     echo "complete: ${summary}, ${passed} of $((passed + issues)) checks passed"
     exit 0
   fi
