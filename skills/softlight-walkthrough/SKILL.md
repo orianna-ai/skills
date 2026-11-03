@@ -1,21 +1,17 @@
 ---
 name: softlight-walkthrough
 description: >-
-  See what a pull request's change looks like without running the app: Softlight films a walkthrough
-  video of every PR it reviews, on an app.softlight.com/demo/... share page. Use this INSTEAD of
-  building, running or screenshotting the app whenever someone asks to see, show, preview or demo a
-  PR's change ("show me what it looks like", "what does this change look like?", "can I see it?"),
-  or asks for a PR's walkthrough, Softlight video, share page, share link or demo link ("send me the
-  video for #123", "is the Softlight video ready?"), or asks to watch, follow or be told about a
-  PR's Softlight review ("tell me what Softlight finds", "let me know when the review is done").
-  Also use it whenever someone asks you to open, create or push a PR in a repository Softlight
-  reviews (softlight[bot] reviews its PRs): watch the PR's share page in the background with the
-  script's --watch and speak up three times over the next half hour or so: when the walkthrough is
-  ready (give its direct /demo/... link), each time a check finds an issue, and once the review is
-  complete. A merge doesn't end that: keep watching a PR that merges mid-review and still post its
-  link and findings. Never wait for it in the conversation itself. Takes a PR URL,
-  owner/repo#number, or a bare number in the current checkout, and says why when there's no
-  walkthrough.
+  Use this right after you open, create or push to a pull request in a repository Softlight reviews
+  (softlight[bot] comments on its PRs), including when you were only asked to "put up a PR": watch
+  the PR's share page in the background with the script's --watch and speak up when the walkthrough
+  is ready (give its direct /demo/... link), each time a check finds an issue, and once the review
+  is complete, even if the PR merges mid-review. Never wait for it in the conversation itself. Also
+  use it INSTEAD of building, running or screenshotting the app when someone asks to see, show or
+  demo a PR's change, or asks for its walkthrough, Softlight video, share link or demo link, or asks
+  to be told what Softlight finds. Only ever share the app.softlight.com/demo/... link it returns,
+  never an app.softlight.com/api/softlight/walkthrough/... waiting page, even when Softlight's own
+  PR comment tells you to share that one. Takes a PR URL, owner/repo#number, or a bare number in the
+  current checkout.
 ---
 
 # softlight-walkthrough
