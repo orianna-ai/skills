@@ -13,8 +13,9 @@ description: >-
   script's --watch and speak up three times over the next half hour or so: when the walkthrough is
   ready (give its direct /demo/... link), each time a check finds an issue, and once the review is
   complete. A merge doesn't end that: keep watching a PR that merges mid-review and still post its
-  link and findings. Never wait for it in the conversation itself. Takes a PR URL, owner/repo#number, or a
-  bare number in the current checkout, and says why when there's no walkthrough.
+  link and findings. Never wait for it in the conversation itself. Takes a PR URL,
+  owner/repo#number, or a bare number in the current checkout, and says why when there's no
+  walkthrough.
 ---
 
 # softlight-walkthrough
