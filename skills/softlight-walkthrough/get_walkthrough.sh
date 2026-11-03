@@ -12,9 +12,12 @@
 # With --watch, the share page is followed until Softlight's review of the pull request is over,
 # for at most SECONDS (default 3600), and every event is printed on stdout, one line each, the
 # moment it happens:
-#   ready: <url>             the walkthrough is published at <url>
-#   issue: [P0|P1|P2 ]<check>  a check on the share page found an issue (once per check)
-#   complete: <summary>      the review is over; the summary counts the issues found
+#   ready: <url>      the walkthrough is published at <url>
+#   issue: [P0|P1|P2 ][<device> ]— <check>[ — <finding>]
+#                     a check found an issue on a device (desktop, tablet or phone), once per
+#                     check and device; <finding> is the issue's title
+#   complete: <N> issues found, <P> of <M> checks passed
+#                     the review is over; every device's results count, as on the page
 # Each line stands on its own, so the output can be streamed to whoever is waiting on it.
 #
 # Exit status:
@@ -51,7 +54,7 @@ wait_seconds=0
 watch=false
 case "${1:-}" in
   -h | --help)
-    sed -n '3,33s/^# \{0,1\}//p' "$0"
+    sed -n '3,34s/^# \{0,1\}//p' "$0"
     exit 0
     ;;
   --wait)
@@ -197,14 +200,95 @@ echo "ready: ${url}"
 
 # --- Watch the share page -------------------------------------------------------------------------
 
-# The checks the share page lists (its #videos list, the same one the page counts its issues
-# from), one per line: "<result>\t<check>", where the result is "passed", "running", or "issue"
-# followed by the issue's level when it has one ("issue P1"). A check the page shows from a
+# The checks the share page lists, one result per check and device, one per line:
+# "<result>\t<device>\t<check>\t<finding>". The result is "passed", "running", or "issue"
+# followed by the issue's level when it has one ("issue P1"); the finding is the issue's title.
+#
+# The #videos list only shows the checks on the page's own device (desktop, usually). Every
+# check is filmed on each device the page offers (desktop, tablet, phone), and the results for
+# all of them are in the check's film, its <section class="take">: a hidden .devices box with a
+# .device per device and a .variant holding each other device's finding. Those are what the
+# page counts its "N of M checks passed" from, so they are read here. A page without devices
+# leaves the device empty and falls back to the list's marks. A check the page shows from a
 # previous run, or one still being filmed, is running: its result isn't this run's yet.
 page_checks() {
   awk '
+    function text(s) {
+      gsub(/<[^>]*>/, "", s)
+      gsub(/&lt;/, "<", s)
+      gsub(/&gt;/, ">", s)
+      gsub(/&quot;/, "\"", s)
+      gsub(/&#x27;|&#39;/, "\047", s)
+      gsub(/&amp;/, "\\&", s)
+      gsub(/[\t ]+/, " ", s)
+      sub(/^ /, "", s)
+      sub(/ $/, "", s)
+      return s
+    }
+    function attr(tag, name,    v) {
+      if (!match(tag, name "=\"[^\"]*\"")) return ""
+      v = substr(tag, RSTART + length(name) + 2, RLENGTH - length(name) - 3)
+      return v
+    }
     { page = page $0 " " }
     END {
+      # the films: the devices each one was filmed on, and the findings on each
+      ntakes = split(page, takes, "<section class=\"take\" id=")
+      for (k = 2; k <= ntakes; k++) {
+        t = k - 2
+        take = takes[k]
+        stop = index(take, "</section>")
+        if (stop) take = substr(take, 1, stop - 1)
+        box = index(take, "<div class=\"devices\"")
+        if (!box) continue
+        boxtag = substr(take, box)
+        boxtag = substr(boxtag, 1, index(boxtag, ">"))
+        own[t] = attr(boxtag, "data-own")
+        head = substr(take, box + length(boxtag))
+        cut = index(head, "<div")
+        if (cut) head = substr(head, 1, cut - 1)
+        ndev[t] = 0
+        while (match(head, /<span class="device[^>]*>/)) {
+          tag = substr(head, RSTART, RLENGTH)
+          head = substr(head, RSTART + RLENGTH)
+          d = attr(tag, "data-device")
+          ndev[t]++
+          dev[t, ndev[t]] = d
+          cls = attr(tag, "class")
+          if (cls ~ /running/) st = "running"
+          else if (cls ~ /unchecked/) st = "unchecked"
+          else if (cls ~ /not-offered/) st = "not_offered"
+          else st = attr(tag, "data-verdict")
+          state[t, d] = st
+          level[t, d] = attr(tag, "data-priority")
+        }
+        # the title of each finding belongs to the .variant it sits in, or to the own device
+        # when it sits outside the .devices box
+        depth = 0
+        rest = take
+        while (match(rest, /<div[ >][^>]*>|<\/div>|<p class="fix-title">[^<]*/)) {
+          tok = substr(rest, RSTART, RLENGTH)
+          rest = substr(rest, RSTART + RLENGTH)
+          if (tok == "</div>") {
+            if (depth > 0) depth--
+          } else if (tok ~ /^<div/) {
+            depth++
+            ctx[depth] = ""
+            if (tok ~ /class="devices"/) ctx[depth] = "box"
+            else if (tok ~ /class="variant/) ctx[depth] = "v:" attr(tok, "data-device")
+          } else {
+            d = own[t]
+            for (j = depth; j >= 1; j--) {
+              if (ctx[j] ~ /^v:/) { d = substr(ctx[j], 3); break }
+              if (ctx[j] == "box") { d = ""; break }
+            }
+            sub(/<p class="fix-title">/, "", tok)
+            if (d != "" && !((t, d) in title)) title[t, d] = text(tok)
+          }
+        }
+      }
+
+      # the list: every check, in order, and whether it is still running
       start = index(page, "<ol class=\"videos\" id=\"videos\">")
       if (!start) exit
       page = substr(page, start)
@@ -216,27 +300,38 @@ page_checks() {
         check = row
         if (!sub(/.*<span class="lbl">/, "", check)) continue
         sub(/<\/span>.*/, "", check)
-        gsub(/&lt;/, "<", check)
-        gsub(/&gt;/, ">", check)
-        gsub(/&quot;/, "\"", check)
-        gsub(/&#x27;|&#39;/, "\047", check)
-        gsub(/&amp;/, "\\&", check)
+        check = text(check)
+        t = match(row, /data-take="[0-9]+"/) ? substr(row, RSTART + 11, RLENGTH - 12) + 0 : -1
+        if (row ~ /^[^>]*(pending|prev|pd-run)/ || row ~ /class="mark spin/) {
+          print "running\t\t" check "\t"
+          continue
+        }
+        if (t >= 0 && (t in ndev)) {
+          for (j = 1; j <= ndev[t]; j++) {
+            d = dev[t, j]
+            st = state[t, d]
+            if (st == "unchecked" || st == "withheld") continue
+            if (st == "running") result = "running"
+            else if (st == "finding") result = "issue" (level[t, d] != "" ? " " level[t, d] : "")
+            else result = "passed"
+            print result "\t" d "\t" check "\t" ((t, d) in title ? title[t, d] : "")
+          }
+          continue
+        }
         # a check not filmed on the device the page shows is not one of its checks there
         if (row ~ /^[^>]*pd-off/) continue
-        if (row ~ /^[^>]*(pending|prev|pd-run)/ || row ~ /class="mark spin/) {
-          result = "running"
-        } else if (row ~ /class="mark bad/) {
+        if (row ~ /class="mark bad/) {
           result = "issue"
           if (match(row, /class="mark bad pri[^>]*>P[0-9]</)) {
-            level = substr(row, RSTART, RLENGTH)
-            sub(/.*>/, "", level)
-            sub(/</, "", level)
-            result = result " " level
+            lv = substr(row, RSTART, RLENGTH)
+            sub(/.*>/, "", lv)
+            sub(/</, "", lv)
+            result = result " " lv
           }
         } else {
           result = "passed"
         }
-        print result "\t" check
+        print result "\t\t" check "\t" ((t >= 0 && (t, own[t]) in title) ? title[t, own[t]] : "")
       }
     }'
 }
@@ -253,17 +348,20 @@ while :; do
   # the page's checks: print each issue the first time it shows
   checks="$(curl --silent --location --max-time 30 --retry 2 "${url}" | page_checks)" || checks=""
   issues=0
+  passed=0
   running=false
-  while IFS=$'\t' read -r result check; do
+  while IFS=$'\t' read -r result device check finding; do
     case "${result}" in
       issue*)
         issues=$((issues + 1))
         level="${result#issue}"
-        if [[ ${seen} != *$'\n'"${check}"$'\n'* ]]; then
-          seen+="${check}"$'\n'
-          echo "issue:${level} ${check}"
+        key="${device}|${check}"
+        if [[ ${seen} != *$'\n'"${key}"$'\n'* ]]; then
+          seen+="${key}"$'\n'
+          echo "issue:${level}${device:+ ${device}} — ${check}${finding:+ — ${finding}}"
         fi
         ;;
+      passed) passed=$((passed + 1)) ;;
       running) running=true ;;
       *) ;;
     esac
@@ -290,10 +388,11 @@ while :; do
       no_walkthrough "stopped: ${title:-Softlight stopped before the checks finished}"
     fi
     case "${issues}" in
-      0) echo "complete: no issues found" ;;
-      1) echo "complete: 1 issue found" ;;
-      *) echo "complete: ${issues} issues found" ;;
+      0) summary="no issues found" ;;
+      1) summary="1 issue found" ;;
+      *) summary="${issues} issues found" ;;
     esac
+    echo "complete: ${summary}, ${passed} of $((passed + issues)) checks passed"
     exit 0
   fi
 
