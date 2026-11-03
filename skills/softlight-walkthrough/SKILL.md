@@ -12,8 +12,10 @@ description: >-
   reviews (softlight[bot] reviews its PRs): watch the PR's share page in the background with the
   script's --watch and speak up three times over the next half hour or so: when the walkthrough is
   ready (give its direct /demo/... link), each time a check finds an issue, and once the review is
-  complete. Never wait for it in the conversation itself. Takes a PR URL, owner/repo#number, or a
-  bare number in the current checkout, and says why when there's no walkthrough.
+  complete. A merge doesn't end that: keep watching a PR that merges mid-review and still post its
+  link and findings. Never wait for it in the conversation itself. Takes a PR URL,
+  owner/repo#number, or a bare number in the current checkout, and says why when there's no
+  walkthrough.
 ---
 
 # softlight-walkthrough
@@ -89,6 +91,22 @@ can't talk to you until it returns.
    without finishing its checks, so say so in its words; running out of time means the review isn't
    done yet, so offer to keep watching. Don't start another watch on your own.
 
+### When the PR merges mid-review
+
+A merge doesn't end the watch, even when the PR-activity system unsubscribes you and says you no
+longer need to watch the PR: that's about CI and review comments, not Softlight. Leave `--watch`
+running. Softlight's walkthrough is meant to be watched after merging, and its findings matter most
+now, as follow-ups on code that has already shipped.
+
+- **Before the walkthrough is out**: Softlight stops filming, and the watch exits with
+  `merged: ... before the video finished recording`. There's no walkthrough, so say nothing about it
+  unless the user asked to see the change.
+- **After the walkthrough is out**: if you haven't given the link yet, give it now. Softlight then
+  either finishes its checks (a `complete:` line) or stops when the merge cuts them off
+  (`stopped: the pull request merged before the checks finished; N issues found before then, ...`).
+  Either way, report what it found the usual way, framed as follow-ups (offer a follow-up PR for the
+  ones worth fixing), and say when the merge cut the checks short.
+
 If nothing you have streams a command's output line by line, settle for two background runs, each of
 which you'll be told about when it exits: first `--wait <pr>`, for the link (hand over the URL as
 soon as it returns), then `--watch <pr>`, whose issues and completion you report together when it
@@ -135,7 +153,7 @@ don't swap it for a link of your own.
 | `indexing`   | Softlight is indexing the repository first.        | Same as `queued`.                                              |
 | `running`    | The review is running and the video isn't out yet. | Same as `queued`.                                              |
 | `video_only` | The PR plays a video but has no share page.        | Tell the user the video is in the PR description.              |
-| `merged`     | The PR merged without a walkthrough.               | Tell the user there's no walkthrough.                          |
+| `merged`     | The PR merged before the video finished recording. | Same as `none`.                                                |
 | `none`       | Softlight didn't film this PR.                     | See below.                                                     |
 | `unknown`    | GitHub didn't answer just now.                     | Run the script again in a few seconds.                         |
 
