@@ -10,8 +10,8 @@ description: >-
   demo a PR's change, or asks for its walkthrough, Softlight video, share link or demo link, or asks
   to be told what Softlight finds. Only ever share the app.softlight.com/demo/... link it returns,
   never an app.softlight.com/api/softlight/walkthrough/... waiting page, even when Softlight's own
-  PR comment tells you to share that one. Takes a PR URL, owner/repo#number, or a bare number in
-  the current checkout.
+  PR comment tells you to share that one. Takes a PR URL, owner/repo#number, or a bare number in the
+  current checkout.
 ---
 
 # softlight-walkthrough
