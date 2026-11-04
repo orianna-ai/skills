@@ -13,12 +13,15 @@
 # for at most SECONDS (default 3600), and every event is printed on stdout, one line each, the
 # moment it happens:
 #   ready: <url>      the walkthrough is published at <url>
-#   issue: [P0|P1|P2 ][<device> ]— <check>[ — <finding>]
-#                     a check found an issue on a device (desktop, tablet or phone), once per
-#                     check and device; <finding> is the issue's title
-#   complete: <N> issues found, <P> of <M> checks passed
+#   commit: <sha>     the review is checking commit <sha>: printed once it is known, and again
+#                     each time a newer push moves the review to another commit
+#   issue: [P0|P1|P2 ][<device> ]— <check>[ — <finding>] (on <sha>)
+#                     a check found an issue on a device (desktop, tablet or phone) at commit
+#                     <sha>, once per commit, check and device; <finding> is the issue's title
+#   complete: <N> issues found, <P> of <M> checks passed (on <sha>)
 #                     the review is over; every device's results count, as on the page
-# Each line stands on its own, so the output can be streamed to whoever is waiting on it.
+# Each line stands on its own, so the output can be streamed to whoever is waiting on it. A
+# result the page still shows from an earlier commit is never reported as the current one's.
 #
 # Exit status:
 #   0  the walkthrough URL is on stdout (with --watch: the review completed)
@@ -54,7 +57,7 @@ wait_seconds=0
 watch=false
 case "${1:-}" in
   -h | --help)
-    sed -n '3,34s/^# \{0,1\}//p' "$0"
+    sed -n '3,37s/^# \{0,1\}//p' "$0"
     exit 0
     ;;
   --wait)
@@ -336,29 +339,54 @@ page_checks() {
     }'
 }
 
+# The commit the share page was rendered at, from its <meta name="softlight-head">.
+readonly HEAD_META='<meta name="softlight-head" content="([0-9a-fA-F]+)"'
+
 seen=$'\n'
+commit=""
 while :; do
-  # the review's own state, from the status the share page itself polls
+  # the review's own state, from the status the share page itself polls. `run_head` is the
+  # commit the run is checking; it can trail `head` while a run on an older commit finishes.
   parsed="$(
     curl --silent --max-time 30 --retry 2 "${WALKTHROUGH}/status?rec=1" \
-      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // ""] | join("|")' 2>/dev/null
-  )" || parsed="unknown|||||"
-  IFS='|' read -r state run_status conclusion refresh title pr_state <<<"${parsed}"
+      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // "", (.run_head // .head // "")] | join("|")' 2>/dev/null
+  )" || parsed="unknown||||||"
+  IFS='|' read -r state run_status conclusion refresh title pr_state run_head <<<"${parsed}"
+  run_head="${run_head:0:7}"
 
-  # the page's checks: print each issue the first time it shows
-  checks="$(curl --silent --location --max-time 30 --retry 2 "${url}" | page_checks)" || checks=""
+  html="$(curl --silent --location --max-time 30 --retry 2 "${url}")" || html=""
+  page_head=""
+  if [[ ${html} =~ ${HEAD_META} ]]; then
+    page_head="${BASH_REMATCH[1]:0:7}"
+  fi
+
+  if [[ -n ${run_head} && ${run_head} != "${commit}" ]]; then
+    commit="${run_head}"
+    echo "commit: ${commit}"
+  fi
+  # a page rendered at another commit than the one being checked predates the run (a push
+  # Softlight hasn't republished the page for yet): every result on it is an earlier commit's,
+  # so none of them is this run's, as the page itself greys them all out
+  predates=false
+  if [[ -n ${run_head} && -n ${page_head} && ${run_head} != "${page_head}" ]]; then
+    predates=true
+  fi
+
+  # the page's checks: print each issue the first time it shows on this commit
+  checks="$(page_checks <<<"${html}")" || checks=""
   issues=0
   passed=0
-  running=false
+  running=${predates}
   while IFS=$'\t' read -r result device check finding; do
+    ${predates} && break
     case "${result}" in
       issue*)
         issues=$((issues + 1))
         level="${result#issue}"
-        key="${device}|${check}"
+        key="${commit}|${device}|${check}"
         if [[ ${seen} != *$'\n'"${key}"$'\n'* ]]; then
           seen+="${key}"$'\n'
-          echo "issue:${level}${device:+ ${device}} — ${check}${finding:+ — ${finding}}"
+          echo "issue:${level}${device:+ ${device}} — ${check}${finding:+ — ${finding}}${commit:+ (on ${commit})}"
         fi
         ;;
       passed) passed=$((passed + 1)) ;;
@@ -404,7 +432,7 @@ while :; do
     elif ${running}; then
       no_walkthrough "stopped: the pull request ${pr_state} before the checks finished; ${so_far}"
     fi
-    echo "complete: ${summary}, ${passed} of $((passed + issues)) checks passed"
+    echo "complete: ${summary}, ${passed} of $((passed + issues)) checks passed${commit:+ (on ${commit})}"
     exit 0
   fi
 
