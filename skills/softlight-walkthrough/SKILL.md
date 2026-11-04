@@ -44,24 +44,47 @@ line the moment each of those happens:
 
 ```text
 ready: https://app.softlight.com/demo/acme/web/pr123/AbCdEfGhIjKl
-issue: P1 desktop — Removing a coupon — Checkout total doesn't update after removing a coupon
-issue: P2 phone — Removing a coupon — The coupon field is hidden behind the keyboard
-issue: P1 phone — Opening an empty cart — Empty cart shows a blank page
-complete: 3 issues found, 15 of 18 checks passed
+commit: 1a2b3c4
+issue: P1 desktop — Removing a coupon — Checkout total doesn't update after removing a coupon (on 1a2b3c4)
+issue: P2 phone — Removing a coupon — The coupon field is hidden behind the keyboard (on 1a2b3c4)
+commit: 9f8e7d6
+issue: P1 phone — Opening an empty cart — Empty cart shows a blank page (on 9f8e7d6)
+complete: 1 issue found, 17 of 18 checks passed (on 9f8e7d6)
 ```
 
-| Line              | When                                                 | What to tell the user                                                                                      |
-| ----------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `ready: <url>`    | The walkthrough is published.                        | The walkthrough is ready, with the URL on its own line.                                                    |
-| `issue: <...>`    | A check found an issue on a device, once per device. | What Softlight flagged (the last part, the issue's title), on which device, and its level (`P0` is worst). |
-| `complete: <...>` | The review is over.                                  | The review is complete, how many issues it found, and how many checks passed. Point back to the link.      |
+| Line              | When                                                                      | What to tell the user                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `ready: <url>`    | The walkthrough is published.                                             | The walkthrough is ready, with the URL on its own line.                                                                       |
+| `commit: <sha>`   | The review starts checking a commit, and again after each newer push.     | Nothing on its own the first time. After a push, that Softlight has moved on to the new commit.                               |
+| `issue: <...>`    | A check found an issue on a device at a commit, once per commit and device. | What Softlight flagged (the last part, the issue's title), on which device, its level (`P0` is worst), and on which commit.   |
+| `complete: <...>` | The review is over.                                                       | The review is complete, how many issues it found and how many checks passed on that commit. Point back to the link.          |
 
-An `issue:` line is `issue: [level ][device ]— <check>[ — <issue>]`: the check's name says what
-Softlight was trying, and the issue says what went wrong, so lead with the issue. A page that
-doesn't film on several devices leaves the device out.
+An `issue:` line is `issue: [level ][device ]— <check>[ — <issue>] (on <sha>)`: the check's name
+says what Softlight was trying, and the issue says what went wrong, so lead with the issue. A page
+that doesn't film on several devices leaves the device out.
 
-The `complete:` line counts every device, the same way the page and Softlight's PR description do:
-one issue per check and device that found one, and `N of M checks passed` across all devices. Before
+### Which commit an issue is about
+
+Every `issue:` and `complete:` line names the commit Softlight checked, and the watch only reports a
+result once Softlight has it for that commit: a result the page still shows from an earlier commit
+is never passed off as the current one's. So never guess which commit an issue came from; read it
+off the line.
+
+- **An issue on a commit you've since pushed past** is about the old code. Say so, and whether your
+  newer push was meant to fix it. Wait for the newer commit's results before calling it fixed.
+- **An issue on your newest commit** is about the code as it is now, even if it looks like one you
+  already fixed: then the fix didn't hold (or caused it). Say that plainly, and look at it again;
+  don't wave it off as a leftover from before the fix.
+- **The same check and device failing again on a newer commit** is reported again, since it's still
+  a problem there.
+
+When you push to a PR that a watch is still following, leave that watch running: it follows the
+review onto the new commit and prints a `commit:` line when it does. Start a new watch only when
+none is running.
+
+The `complete:` line counts every device on the commit it names, the same way the page and
+Softlight's PR description do: one issue per check and device that found one, and
+`N of M checks passed` across all devices. Before
 you tell the user the count, check it against Softlight's own tally (the PR description's
 `N of M checks passed`, or its summary comment once posted). If they disagree, report Softlight's
 numbers and its list of issues, not the watch's, and say the watch's count was off. Never relay a
