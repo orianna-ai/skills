@@ -349,13 +349,14 @@ commit=""
 while :; do
   # the review's own state, from the status the share page itself polls. `run_head` is the
   # commit the run is checking; it can trail `head` while a run on an older commit finishes.
-  # `page_id` names the page the share link serves now.
+  # `head` is the pull request's newest commit. `page_id` names the page the share link serves now.
   parsed="$(
     curl --silent --max-time 30 --retry 2 "${WALKTHROUGH}/status?rec=1" \
-      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // "", (.run_head // .head // ""), .page_id // ""] | join("|")' 2>/dev/null
-  )" || parsed="unknown|||||||"
-  IFS='|' read -r state run_status conclusion refresh title pr_state run_head page_id <<<"${parsed}"
+      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // "", (.run_head // .head // ""), .page_id // "", .head // ""] | join("|")' 2>/dev/null
+  )" || parsed="unknown||||||||"
+  IFS='|' read -r state run_status conclusion refresh title pr_state run_head page_id head <<<"${parsed}"
   run_head="${run_head:0:7}"
+  head="${head:0:7}"
 
   # the page is large (about 1 MB) but compresses well
   html="$(curl --silent --location --compressed --max-time 30 --retry 2 "${url}")" || html=""
@@ -384,6 +385,14 @@ while :; do
     stale=true
   elif [[ -n ${page_id} && -n ${their_id} && ${page_id} != "${their_id}" ]]; then
     stale=true
+  fi
+  # The review isn't over while the pull request's newest commit is ahead of the page's: a push
+  # Softlight hasn't started a run for yet leaves the previous commit's finished page up, which
+  # would otherwise read as complete. Once the pull request is merged or closed, no run is coming.
+  behind=false
+  if [[ -n ${head} && -n ${page_head} && ${head} != "${page_head}" ]] \
+    && [[ ${pr_state} != merged && ${pr_state} != closed ]]; then
+    behind=true
   fi
 
   # the page's checks: print each issue the first time it shows on this commit
@@ -418,6 +427,7 @@ while :; do
   # the review is over once its check has concluded and the page shows no check still running.
   # On a merged or closed pull request, a check still showing as running once the run has
   # concluded was cut off by the merge and will never be recorded, so it doesn't hold the watch.
+  # A superseded run doesn't end the watch either: it follows the newer push's run instead.
   concluded=false
   if [[ -n ${run_status} ]]; then
     [[ ${run_status} != completed && ${run_status} != none ]] || concluded=true
@@ -425,7 +435,7 @@ while :; do
     concluded=true
   fi
   settled=false
-  if [[ ${state} == ready ]] && ${concluded}; then
+  if [[ ${state} == ready && ${title} != *Superseded* ]] && ${concluded} && ! ${behind}; then
     if ! ${running} || [[ ${pr_state} == merged || ${pr_state} == closed ]]; then
       settled=true
     fi
@@ -438,8 +448,6 @@ while :; do
       no_walkthrough "stopped: the pull request merged before the checks finished; ${so_far}"
     elif [[ ${title} == *Interrupted* ]]; then
       no_walkthrough "stopped: Softlight was interrupted before the checks finished; ${so_far}"
-    elif [[ ${title} == *Superseded* ]]; then
-      no_walkthrough "stopped: a newer push replaced this run"
     elif [[ -n ${conclusion} && ${conclusion} != success && ${conclusion} != neutral ]] \
       && [[ ! ${title} =~ Complete|Not\ Needed|Up\ to\ Date ]]; then
       no_walkthrough "stopped: ${title:-Softlight stopped before the checks finished}; ${so_far}"
