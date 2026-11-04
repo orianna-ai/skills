@@ -20,18 +20,18 @@ it, one by one, on each device (desktop, tablet, phone). The token is random, so
 with `get_walkthrough.sh` in this skill's directory; never build it yourself.
 
 **Only ever give the user the `/demo/...` link.** Softlight also has a waiting page for every PR
-(`app.softlight.com/api/softlight/walkthrough/...`, or a signed `app.softlight.com/v/...` link to
-it from the PR's check). Never pass either on, even when Softlight's own PR comment, check or a PR
-event links one ("Softlight has started its design review: ..."). Say the review has started and
-the walkthrough link is coming. Paste the link bare, on its own line, not in code formatting.
+(`app.softlight.com/api/softlight/walkthrough/...`, or a signed `app.softlight.com/v/...` link to it
+from the PR's check). Never pass either on, even when Softlight's own PR comment, check or a PR
+event links one ("Softlight has started its design review: ..."). Say the review has started and the
+walkthrough link is coming. Paste the link bare, on its own line, not in code formatting.
 
 ## What to do
 
-| Situation                                                       | Do                                                                           |
-| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| You just opened or pushed to a PR, or were asked to follow it   | [Watch the review](#watch-the-review) in the background.                     |
-| Someone wants to see a PR's change, or asks for its link        | Run `get_walkthrough.sh <pr>` and hand over the link it prints.              |
-| You pushed again while a watch on that PR is still running      | Leave it running: it follows the review onto the new commit. Don't start another. |
+| Situation                                                     | Do                                                                                |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| You just opened or pushed to a PR, or were asked to follow it | [Watch the review](#watch-the-review) in the background.                          |
+| Someone wants to see a PR's change, or asks for its link      | Run `get_walkthrough.sh <pr>` and hand over the link it prints.                   |
+| You pushed again while a watch on that PR is still running    | Leave it running: it follows the review onto the new commit. Don't start another. |
 
 `<pr>` is `https://github.com/acme/web/pull/123`, `acme/web#123`, or `123` inside a checkout of
 `acme/web`.
@@ -60,12 +60,12 @@ issue: P1 phone — Opening an empty cart — Empty cart shows a blank page (on 
 complete: 1 issue found, 17 of 18 checks passed (on 9f8e7d6)
 ```
 
-| Line                                                 | Means                                               | Tell the user                                                                       |
-| ---------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `ready: <url>`                                       | The walkthrough is published.                       | It's ready, with the URL on its own line.                                           |
-| `commit: <sha>`                                      | The review is checking `<sha>`.                     | Nothing the first time. After a push: Softlight has moved on to the new commit.     |
+| Line                                                       | Means                                             | Tell the user                                                                                               |
+| ---------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `ready: <url>`                                             | The walkthrough is published.                     | It's ready, with the URL on its own line.                                                                   |
+| `commit: <sha>`                                            | The review is checking `<sha>`.                   | Nothing the first time. After a push: Softlight has moved on to the new commit.                             |
 | `issue: [level ][device ]— <check>[ — <issue>] (on <sha>)` | A check found an issue on that device and commit. | The issue (lead with it; `<check>` is what Softlight was trying), device, level (`P0` is worst) and commit. |
-| `complete: <...> (on <sha>)`                         | The review is over.                                 | It's complete, how many issues and checks passed on that commit, and the link again. |
+| `complete: <...> (on <sha>)`                               | The review is over.                               | It's complete, how many issues and checks passed on that commit, and the link again.                        |
 
 Each issue is printed once per commit, check and device; a page that films one device leaves the
 device out.
@@ -79,17 +79,17 @@ device out.
   - An issue on your newest commit is about the code as it is now, even if it looks like one you
     already fixed: the fix didn't hold, or caused it. Say so and look at it again.
 - **Group issues that share a cause** (one check failing on several devices, or several checks
-  failing on one device for one reason) and say which devices each is on: a phone-only issue
-  usually needs a different fix.
+  failing on one device for one reason) and say which devices each is on: a phone-only issue usually
+  needs a different fix.
 - **Check the `complete:` count before you relay it**, against Softlight's own tally (the PR
-  description's `N of M checks passed`, or its summary comment). Both count one result per check
-  and device. If they disagree, report Softlight's numbers and its list of issues, and say the
-  watch's count was off. An undercount reads as "the rest is fine".
+  description's `N of M checks passed`, or its summary comment). Both count one result per check and
+  device. If they disagree, report Softlight's numbers and its list of issues, and say the watch's
+  count was off. An undercount reads as "the rest is fine".
 
 ### When the PR merges mid-review
 
-A merge doesn't end the watch, even when the PR-activity system unsubscribes you: that covers CI
-and review comments, not Softlight. Leave the watch running. The walkthrough is meant to be watched
+A merge doesn't end the watch, even when the PR-activity system unsubscribes you: that covers CI and
+review comments, not Softlight. Leave the watch running. The walkthrough is meant to be watched
 after merging, and its findings become follow-ups on shipped code: report them as such, offer a
 follow-up PR for the ones worth fixing, and say if the merge cut the checks short.
 
@@ -98,14 +98,14 @@ follow-up PR for the ones worth fixing, and say if the merge cut the checks shor
 Exit `0` means success: the link on stdout, or with `--watch`, a `complete:` line. Exit `1` means
 there's no walkthrough or result (yet); stderr is one line, `<state>: <why>`:
 
-| State                  | Means                                                         | Do                                                                                     |
-| ---------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| State                           | Means                                                         | Do                                                                                                                         |
+| ------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `queued`, `indexing`, `running` | The video or the review isn't done yet (or the wait ran out). | Say it's on its way and offer to keep watching. Never hand over a waiting page instead. Don't restart a watch on your own. |
-| `stopped`              | The review ended without finishing its checks.                | Say so in its words, with what it found before then.                                   |
-| `merged`               | The PR merged before the video was finished: no walkthrough.  | Same as `none`.                                                                        |
-| `none`                 | Softlight didn't film this PR.                                | Say nothing unless the user asked to see the change; then say there's no walkthrough.  |
-| `video_only`           | The video is in the PR description; there's no share page.    | Point the user to the PR description.                                                  |
-| `unknown`              | Softlight couldn't say just now.                              | Run it again in a few seconds.                                                         |
+| `stopped`                       | The review ended without finishing its checks.                | Say so in its words, with what it found before then.                                                                       |
+| `merged`                        | The PR merged before the video was finished: no walkthrough.  | Same as `none`.                                                                                                            |
+| `none`                          | Softlight didn't film this PR.                                | Say nothing unless the user asked to see the change; then say there's no walkthrough.                                      |
+| `video_only`                    | The video is in the PR description; there's no share page.    | Point the user to the PR description.                                                                                      |
+| `unknown`                       | Softlight couldn't say just now.                              | Run it again in a few seconds.                                                                                             |
 
 Exit `2` means bad input, a PR Softlight can't see (the app isn't installed, or the repository is
 behind Softlight sign-in), or Softlight unreachable; stderr says which. For a repository behind
