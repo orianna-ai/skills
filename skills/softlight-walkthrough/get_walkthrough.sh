@@ -26,7 +26,8 @@
 # Exit status:
 #   0  the walkthrough URL is on stdout (with --watch: the review completed)
 #   1  there is no walkthrough (yet), or (with --watch) the review stopped or ran out of time;
-#      what happened is on stderr
+#      stderr is one line, "<state>: <why>", with state one of queued, indexing, running,
+#      video_only, merged, none, unknown or stopped
 #   2  bad input, or Softlight could not be read
 #
 # The link comes from the first of these that has it:
@@ -57,7 +58,7 @@ wait_seconds=0
 watch=false
 case "${1:-}" in
   -h | --help)
-    sed -n '3,37s/^# \{0,1\}//p' "$0"
+    sed -n '3,38s/^# \{0,1\}//p' "$0"
     exit 0
     ;;
   --wait)
@@ -339,46 +340,59 @@ page_checks() {
     }'
 }
 
-# The commit the share page was rendered at, from its <meta name="softlight-head">.
+# The commit the share page was rendered at, and which version of the page it is.
 readonly HEAD_META='<meta name="softlight-head" content="([0-9a-fA-F]+)"'
+readonly PAGE_ID_META='<meta name="softlight-page-id" content="([0-9a-fA-F]+)"'
 
 seen=$'\n'
 commit=""
 while :; do
   # the review's own state, from the status the share page itself polls. `run_head` is the
   # commit the run is checking; it can trail `head` while a run on an older commit finishes.
+  # `page_id` names the page the share link serves now.
   parsed="$(
     curl --silent --max-time 30 --retry 2 "${WALKTHROUGH}/status?rec=1" \
-      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // "", (.run_head // .head // "")] | join("|")' 2>/dev/null
-  )" || parsed="unknown||||||"
-  IFS='|' read -r state run_status conclusion refresh title pr_state run_head <<<"${parsed}"
+      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // "", (.run_head // .head // ""), .page_id // ""] | join("|")' 2>/dev/null
+  )" || parsed="unknown|||||||"
+  IFS='|' read -r state run_status conclusion refresh title pr_state run_head page_id <<<"${parsed}"
   run_head="${run_head:0:7}"
 
-  html="$(curl --silent --location --max-time 30 --retry 2 "${url}")" || html=""
+  # the page is large (about 1 MB) but compresses well
+  html="$(curl --silent --location --compressed --max-time 30 --retry 2 "${url}")" || html=""
   page_head=""
   if [[ ${html} =~ ${HEAD_META} ]]; then
     page_head="${BASH_REMATCH[1]:0:7}"
+  fi
+  their_id=""
+  if [[ ${html} =~ ${PAGE_ID_META} ]]; then
+    their_id="${BASH_REMATCH[1]}"
   fi
 
   if [[ -n ${run_head} && ${run_head} != "${commit}" ]]; then
     commit="${run_head}"
     echo "commit: ${commit}"
   fi
-  # a page rendered at another commit than the one being checked predates the run (a push
-  # Softlight hasn't republished the page for yet): every result on it is an earlier commit's,
-  # so none of them is this run's, as the page itself greys them all out
-  predates=false
+  # Nothing on the page counts as this run's result, and the tick is treated as still running,
+  # when the page is stale:
+  # - it was rendered at another commit than the one being checked (a push Softlight hasn't
+  #   republished the page for yet), so every result on it is an earlier commit's; the page
+  #   itself greys them all out
+  # - it isn't the page the status says the link serves (a cache or replica that hasn't caught
+  #   up), which the page itself also refuses
+  stale=false
   if [[ -n ${run_head} && -n ${page_head} && ${run_head} != "${page_head}" ]]; then
-    predates=true
+    stale=true
+  elif [[ -n ${page_id} && -n ${their_id} && ${page_id} != "${their_id}" ]]; then
+    stale=true
   fi
 
   # the page's checks: print each issue the first time it shows on this commit
   checks="$(page_checks <<<"${html}")" || checks=""
   issues=0
   passed=0
-  running=${predates}
+  running=${stale}
   while IFS=$'\t' read -r result device check finding; do
-    ${predates} && break
+    ${stale} && break
     case "${result}" in
       issue*)
         issues=$((issues + 1))
@@ -437,7 +451,7 @@ while :; do
   fi
 
   if ((SECONDS + POLL_SECONDS > deadline)); then
-    no_walkthrough "the review is still running after ${wait_seconds}s; run this again with --watch to keep watching"
+    no_walkthrough "running: the review is still running after ${wait_seconds}s; run this again with --watch to keep watching"
   fi
   sleep "${POLL_SECONDS}"
 done
