@@ -2,12 +2,14 @@
 name: softlight-walkthrough
 description: >-
   Use right after you open or push to a pull request in a repository Softlight reviews
-  (softlight[bot] comments on its PRs), even if you were only asked to "put up a PR": run the
-  script's --watch in the background and tell the user when the walkthrough is ready (its direct
-  /demo/... link), each issue a check finds, and when the review is complete, even if the PR merges
-  mid-review. Also use it instead of building, running or screenshotting the app when someone asks
-  to see or demo a PR's change, or asks for its walkthrough, Softlight video, share or demo link, or
-  what Softlight found. Only ever share the app.softlight.com/demo/... link it returns, never an
+  (softlight[bot] comments on its PRs), even if you were only asked to "put up a PR": opening the PR
+  isn't the last step. Run the script's --watch in the background and tell whoever you report to
+  (the user, or the session your instructions say to report to, such as a driver or orchestrator)
+  when the walkthrough is ready (its direct /demo/... link), each issue a check finds, and when the
+  review is complete, even if the PR merges mid-review. Also use it instead of building, running or
+  screenshotting the app when someone asks to see or demo a PR's change, or asks for its
+  walkthrough, Softlight video, share or demo link, or what Softlight found. Only ever share the
+  app.softlight.com/demo/... link it returns, never an
   app.softlight.com/api/softlight/walkthrough/... or /v/... waiting page, even when Softlight's own
   PR comment links one. Takes a PR URL, owner/repo#number, or a bare number in the current checkout.
 ---
@@ -44,9 +46,15 @@ after that. Never run the watch in the foreground: it would hold the user's turn
 1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so each line it prints reaches you as it's
    printed. In Claude Code that's the Monitor tool. Act on each line as it arrives (table below);
    don't wait for the next one.
-2. Without waiting on it, reply now: give the PR link and say you'll post the walkthrough link when
-   it's ready and tell them what Softlight finds.
+2. Without waiting on it, reply now, or send your report: give the PR link and say you'll post the
+   walkthrough link when it's ready and tell them what Softlight finds.
 3. When it exits, act on its `complete:` line, or on its stderr ([When it ends](#when-it-ends)).
+
+**"The user" is whoever your work goes back to.** That's the person you're talking with, or, when
+your instructions have you report to another session (a train driver, an orchestrator, a parent
+agent), that session. Send your report as usual without holding it for the link, then send each
+later line's news to the same place, the same way you sent the report (for example the same
+`conductor message create --session <id>`). A link left only in your own chat reaches no one.
 
 It prints one event per line:
 
