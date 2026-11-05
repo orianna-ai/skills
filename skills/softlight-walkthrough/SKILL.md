@@ -2,14 +2,14 @@
 name: softlight-walkthrough
 description: >-
   Use right after you open or push to a pull request in a repository Softlight reviews
-  (softlight[bot] comments on its PRs), even if you were only asked to "put up a PR": opening the PR
-  isn't the last step. Run the script's --watch in the background and tell whoever you report to
-  (the user, or the session your instructions say to report to, such as a driver or orchestrator)
-  when the walkthrough is ready (its direct /demo/... link), each issue a check finds, and when the
-  review is complete, even if the PR merges mid-review. Also use it instead of building, running or
-  screenshotting the app when someone asks to see or demo a PR's change, or asks for its
-  walkthrough, Softlight video, share or demo link, or what Softlight found. Only ever share the
-  app.softlight.com/demo/... link it returns, never an
+  (softlight[bot] comments on its PRs), even if you were only asked to "put up a PR". Opening the PR
+  is not the end of the task. Run the script's --watch in the background and tell the user when the
+  walkthrough is ready (its direct /demo/... link), each issue a check finds, and when the review is
+  complete, even if the PR merges mid-review. The user is whoever you report your work to: the
+  person you're talking with, or another session your instructions name, such as a driver or
+  orchestrator. Also use it instead of building, running or screenshotting the app when someone asks
+  to see or demo a PR's change, or asks for its walkthrough, Softlight video, share or demo link, or
+  what Softlight found. Only ever share the app.softlight.com/demo/... link it returns, never an
   app.softlight.com/api/softlight/walkthrough/... or /v/... waiting page, even when Softlight's own
   PR comment links one. Takes a PR URL, owner/repo#number, or a bare number in the current checkout.
 ---
@@ -26,6 +26,17 @@ with `get_walkthrough.sh` in this skill's directory; never build it yourself.
 from the PR's check). Never pass either on, even when Softlight's own PR comment, check or a PR
 event links one ("Softlight has started its design review: ..."). Say the review has started and the
 walkthrough link is coming. Paste the link bare, on its own line, not in code formatting.
+
+## Who "the user" is
+
+In this skill, "the user" is whoever you report your work to:
+
+- If a person gave you the task, the user is that person. Reply in your conversation with them.
+- If your instructions say to report to another session, such as a train driver, an orchestrator or
+  a parent agent, the user is that session. Send every update there the same way you send your
+  report, for example with the same `conductor message create --session <id>` command.
+
+In the second case, nobody reads your own chat. A link you write only there reaches no one.
 
 ## What to do
 
@@ -46,15 +57,10 @@ after that. Never run the watch in the foreground: it would hold the user's turn
 1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so each line it prints reaches you as it's
    printed. In Claude Code that's the Monitor tool. Act on each line as it arrives (table below);
    don't wait for the next one.
-2. Without waiting on it, reply now, or send your report: give the PR link and say you'll post the
-   walkthrough link when it's ready and tell them what Softlight finds.
+2. Without waiting on it, tell the user now: give the PR link, and say you'll send the walkthrough
+   link when it's ready and report what Softlight finds. If you report to another session, this is
+   your usual report. Send it now; don't hold it for the link.
 3. When it exits, act on its `complete:` line, or on its stderr ([When it ends](#when-it-ends)).
-
-**"The user" is whoever your work goes back to.** That's the person you're talking with, or, when
-your instructions have you report to another session (a train driver, an orchestrator, a parent
-agent), that session. Send your report as usual without holding it for the link, then send each
-later line's news to the same place, the same way you sent the report (for example the same
-`conductor message create --session <id>`). A link left only in your own chat reaches no one.
 
 It prints one event per line:
 
