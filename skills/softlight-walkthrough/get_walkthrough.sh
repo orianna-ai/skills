@@ -18,8 +18,10 @@
 #   issue: [P0|P1|P2 ][<device> ]— <check>[ — <finding>] (on <sha>)
 #                     a check found an issue on a device (desktop, tablet or phone) at commit
 #                     <sha>, once per commit, check and device; <finding> is the issue's title
-#   complete: <N> issues found, <P> of <M> checks passed (on <sha>)
-#                     the review is over; every device's results count, as on the page
+#   complete: <N> issues found, <P> of <M> checks passed[ (<K> not offered on a device, counted as passed)] (on <sha>)
+#                     the review is over; every device's results count, as in the share page's
+#                     score. A check not offered on a device counts as passed there, as on the
+#                     page; the PR description leaves those out, so its tally is K lower
 # Each line stands on its own, so the output can be streamed to whoever is waiting on it. A
 # result the page still shows from an earlier commit is never reported as the current one's.
 #
@@ -58,7 +60,7 @@ wait_seconds=0
 watch=false
 case "${1:-}" in
   -h | --help)
-    sed -n '3,38s/^# \{0,1\}//p' "$0"
+    sed -n '3,40s/^# \{0,1\}//p' "$0"
     exit 0
     ;;
   --wait)
@@ -205,8 +207,9 @@ echo "ready: ${url}"
 # --- Watch the share page -------------------------------------------------------------------------
 
 # The checks the share page lists, one result per check and device, one per line:
-# "<result>\037<device>\037<check>\037<finding>". The result is "passed", "running", or "issue"
-# followed by the issue's level when it has one ("issue P1"); the finding is the issue's title.
+# "<result>\037<device>\037<check>\037<finding>". The result is "passed", "not_offered" (the
+# product has no such flow on that device), "running", or "issue" followed by the issue's level
+# when it has one ("issue P1"); the finding is the issue's title.
 # The fields are split on the unit separator (\037), not a tab: a tab is whitespace to `read`, so
 # an empty device (a page with only one device) would collapse into the next field and shift the
 # check into the device and the finding into the check.
@@ -239,11 +242,20 @@ page_checks() {
     }
     { page = page $0 " " }
     END {
-      # the films: the devices each one was filmed on, and the findings on each
-      ntakes = split(page, takes, "<section class=\"take\" id=")
+      # the films: the devices each one was filmed on, and the findings on each. A list row
+      # names its film by position (data-take), counting every film but a "more" one, as the
+      # page does (.reel > .take:not(.more)), whatever other classes it has: a film its own
+      # device could not record is a "take pd-na", and skipping it would hand every later row
+      # the results of the film after its own
+      ntakes = split(page, takes, "<section class=\"take")
+      t = -1
       for (k = 2; k <= ntakes; k++) {
-        t = k - 2
         take = takes[k]
+        if (!match(take, /^[^"]*"/)) continue
+        classes = substr(take, 1, RLENGTH - 1)
+        if (classes != "" && substr(classes, 1, 1) != " ") continue
+        if ((classes " ") ~ / more /) continue
+        t++
         stop = index(take, "</section>")
         if (stop) take = substr(take, 1, stop - 1)
         box = index(take, "<div class=\"devices\"")
@@ -267,6 +279,8 @@ page_checks() {
           else if (cls ~ /not-offered/) st = "not_offered"
           else st = attr(tag, "data-verdict")
           state[t, d] = st
+          # the page scores only the devices some film was recorded (or is being) on
+          if (st != "unchecked" && st != "not_offered") { filmed[d] = 1; anyfilm = 1 }
           level[t, d] = attr(tag, "data-priority")
         }
         # the title of each finding belongs to the .variant it sits in, or to the own device
@@ -316,17 +330,22 @@ page_checks() {
         if (t >= 0 && (t in ndev)) {
           for (j = 1; j <= ndev[t]; j++) {
             d = dev[t, j]
+            if (!(d in filmed)) continue
             st = state[t, d]
             if (st == "unchecked" || st == "withheld") continue
             if (st == "running") result = "running"
             else if (st == "finding") result = "issue" (level[t, d] != "" ? " " level[t, d] : "")
             # a check not offered on a device counts as passed there, on purpose: that is how
-            # the page tallies "N of M checks passed"
+            # the page tallies "N of M checks passed" (the PR description leaves them out)
+            else if (st == "not_offered") result = "not_offered"
             else result = "passed"
             print result "\037" d "\037" check "\037" ((t, d) in title ? title[t, d] : "")
           }
           continue
         }
+        # on a page with devices, a row whose film has no devices box (from an older frame) is on
+        # no device, as the page counts it
+        if (anyfilm && t >= 0) continue
         # a check not filmed on the device the page shows is not one of its checks there
         if (row ~ /^[^>]*pd-off/) continue
         if (row ~ /class="mark bad/) {
@@ -359,13 +378,16 @@ while :; do
   # the review's own state, from the status the share page itself polls. `run_head` is the
   # commit the run is checking; it can trail `head` while a run on an older commit finishes.
   # `head` is the pull request's newest commit. `page_id` names the page the share link serves now.
+  # `rides` is set when Softlight judged a push not to change the review it already had: the
+  # head's check then rides that earlier commit's review, whose page speaks for the head.
   parsed="$(
     curl --silent --max-time 30 --retry 2 "${WALKTHROUGH}/status?rec=1" \
-      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // "", (.run_head // .head // ""), .page_id // "", .head // ""] | join("|")' 2>/dev/null
-  )" || parsed="unknown||||||||"
-  IFS='|' read -r state run_status conclusion refresh title pr_state run_head page_id head <<<"${parsed}"
+      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // "", (.run_head // .head // ""), .page_id // "", .head // "", .rides // ""] | join("|")' 2>/dev/null
+  )" || parsed="unknown|||||||||"
+  IFS='|' read -r state run_status conclusion refresh title pr_state run_head page_id head rides <<<"${parsed}"
   run_head="${run_head:0:7}"
   head="${head:0:7}"
+  rides="${rides:0:7}"
 
   # the page is large (about 1 MB) but compresses well. Every share page has the checks list, so
   # a page without it wasn't read (a failed request, an error page or a cut-off download): its
@@ -395,20 +417,24 @@ while :; do
   # when the page is stale:
   # - it was rendered at another commit than the one being checked (a push Softlight hasn't
   #   republished the page for yet), so every result on it is an earlier commit's; the page
-  #   itself greys them all out
+  #   itself greys them all out. Not when the page is at the commit the head's check rides:
+  #   that page is the review of the head, and no newer one is coming
   # - it isn't the page the status says the link serves (a cache or replica that hasn't caught
   #   up), which the page itself also refuses
+  ridden=false
+  [[ -z ${rides} || ${page_head} != "${rides}" ]] || ridden=true
   stale=false
-  if [[ -n ${run_head} && -n ${page_head} && ${run_head} != "${page_head}" ]]; then
+  if [[ -n ${run_head} && -n ${page_head} && ${run_head} != "${page_head}" ]] && ! ${ridden}; then
     stale=true
   elif [[ -n ${page_id} && -n ${their_id} && ${page_id} != "${their_id}" ]]; then
     stale=true
   fi
   # The review isn't over while the pull request's newest commit is ahead of the page's: a push
   # Softlight hasn't started a run for yet leaves the previous commit's finished page up, which
-  # would otherwise read as complete. Once the pull request is merged or closed, no run is coming.
+  # would otherwise read as complete. Once the pull request is merged or closed, no run is coming,
+  # and a page the head's check rides is the head's own result.
   behind=false
-  if [[ -n ${head} && -n ${page_head} && ${head} != "${page_head}" ]] \
+  if [[ -n ${head} && -n ${page_head} && ${head} != "${page_head}" ]] && ! ${ridden} \
     && [[ ${pr_state} != merged && ${pr_state} != closed ]]; then
     behind=true
   fi
@@ -417,6 +443,7 @@ while :; do
   checks="$(page_checks <<<"${html}")" || checks=""
   issues=0
   passed=0
+  not_offered=0
   running=${stale}
   ((unread == 0)) || running=true
   while IFS=$'\037' read -r result device check finding; do
@@ -432,6 +459,10 @@ while :; do
         fi
         ;;
       passed) passed=$((passed + 1)) ;;
+      not_offered)
+        passed=$((passed + 1))
+        not_offered=$((not_offered + 1))
+        ;;
       running) running=true ;;
       *) ;;
     esac
@@ -462,7 +493,10 @@ while :; do
     fi
   fi
   if ${settled}; then
-    so_far="${summary} before then, ${passed} of $((passed + issues)) checks passed"
+    tally="${passed} of $((passed + issues)) checks passed"
+    # the PR description counts these out, so its tally is lower by this many
+    ((not_offered == 0)) || tally+=" (${not_offered} not offered on a device, counted as passed)"
+    so_far="${summary} before then, ${tally}"
     if [[ ${title} == *Waiting* ]]; then
       no_walkthrough "stopped: Softlight is waiting until the pull request is ready for review"
     elif [[ ${title} == *Interrupted* && ${pr_state} == merged ]]; then
@@ -475,7 +509,7 @@ while :; do
     elif ${running}; then
       no_walkthrough "stopped: the pull request ${pr_state} before the checks finished; ${so_far}"
     fi
-    echo "complete: ${summary}, ${passed} of $((passed + issues)) checks passed${commit:+ (on ${commit})}"
+    echo "complete: ${summary}, ${tally}${commit:+ (on ${commit})}"
     exit 0
   fi
 
