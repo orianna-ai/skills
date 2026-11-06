@@ -71,7 +71,7 @@ issue: P1 desktop — Removing a coupon — Checkout total doesn't update after 
 issue: P2 phone — Removing a coupon — The coupon field is hidden behind the keyboard (on 1a2b3c4)
 commit: 9f8e7d6
 issue: P1 phone — Opening an empty cart — Empty cart shows a blank page (on 9f8e7d6)
-complete: 1 issue found, 17 of 18 checks passed (on 9f8e7d6)
+complete: 1 issue found, 17 of 18 checks passed (2 not offered on a device, counted as passed) (on 9f8e7d6)
 ```
 
 | Line                                                       | Means                                             | Tell the user                                                                                               |
@@ -95,10 +95,13 @@ device out.
 - **Group issues that share a cause** (one check failing on several devices, or several checks
   failing on one device for one reason) and say which devices each is on: a phone-only issue usually
   needs a different fix.
-- **Check the `complete:` count before you relay it**, against Softlight's own tally (the PR
-  description's `N of M checks passed`, or its summary comment). Both count one result per check and
-  device. If they disagree, report Softlight's numbers and its list of issues, and say the watch's
-  count was off. An undercount reads as "the rest is fine".
+- **Check the `complete:` count before you relay it**, against Softlight's own list of issues (the
+  PR description, or its summary comment): the number of issues should match. The checks passed are
+  counted as on the share page's score, one result per check and device, and a check a device
+  doesn't offer counts as passed there. The PR description's `N/M UX checks passed` leaves those
+  out, so it is lower by the "not offered" number in the `complete:` line; that difference is
+  expected, so don't report it. If the issues disagree, report Softlight's numbers and its list of
+  issues, and say the watch's count was off. An undercount reads as "the rest is fine".
 
 ### When the PR merges mid-review
 
