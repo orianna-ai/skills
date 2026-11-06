@@ -96,8 +96,8 @@ device out.
   failing on one device for one reason) and say which devices each is on: a phone-only issue usually
   needs a different fix.
 - **Check the `complete:` count before you relay it**, against Softlight's own list of issues (the
-  PR description, or its summary comment): the number of issues should match. The checks passed
-  are counted as on the share page's score, one result per check and device, and a check a device
+  PR description, or its summary comment): the number of issues should match. The checks passed are
+  counted as on the share page's score, one result per check and device, and a check a device
   doesn't offer counts as passed there. The PR description's `N/M UX checks passed` leaves those
   out, so it is lower by the "not offered" number in the `complete:` line; that difference is
   expected, so don't report it. If the issues disagree, report Softlight's numbers and its list of
