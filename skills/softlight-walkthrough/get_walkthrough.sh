@@ -205,8 +205,11 @@ echo "ready: ${url}"
 # --- Watch the share page -------------------------------------------------------------------------
 
 # The checks the share page lists, one result per check and device, one per line:
-# "<result>\t<device>\t<check>\t<finding>". The result is "passed", "running", or "issue"
+# "<result>\037<device>\037<check>\037<finding>". The result is "passed", "running", or "issue"
 # followed by the issue's level when it has one ("issue P1"); the finding is the issue's title.
+# The fields are split on the unit separator (\037), not a tab: a tab is whitespace to `read`, so
+# an empty device (a page with only one device) would collapse into the next field and shift the
+# check into the device and the finding into the check.
 #
 # The #videos list only shows the checks on the page's own device (desktop, usually). Every
 # check is filmed on each device the page offers (desktop, tablet, phone), and the results for
@@ -224,7 +227,7 @@ page_checks() {
       gsub(/&quot;/, "\"", s)
       gsub(/&#x27;|&#39;/, "\047", s)
       gsub(/&amp;/, "\\&", s)
-      gsub(/[\t ]+/, " ", s)
+      gsub(/[\t\037 ]+/, " ", s)
       sub(/^ /, "", s)
       sub(/ $/, "", s)
       return s
@@ -307,7 +310,7 @@ page_checks() {
         check = text(check)
         t = match(row, /data-take="[0-9]+"/) ? substr(row, RSTART + 11, RLENGTH - 12) + 0 : -1
         if (row ~ /^[^>]*(pending|prev|pd-run)/ || row ~ /class="mark spin/) {
-          print "running\t\t" check "\t"
+          print "running\037\037" check "\037"
           continue
         }
         if (t >= 0 && (t in ndev)) {
@@ -317,8 +320,10 @@ page_checks() {
             if (st == "unchecked" || st == "withheld") continue
             if (st == "running") result = "running"
             else if (st == "finding") result = "issue" (level[t, d] != "" ? " " level[t, d] : "")
+            # a check not offered on a device counts as passed there, on purpose: that is how
+            # the page tallies "N of M checks passed"
             else result = "passed"
-            print result "\t" d "\t" check "\t" ((t, d) in title ? title[t, d] : "")
+            print result "\037" d "\037" check "\037" ((t, d) in title ? title[t, d] : "")
           }
           continue
         }
@@ -335,7 +340,7 @@ page_checks() {
         } else {
           result = "passed"
         }
-        print result "\t\t" check "\t" ((t >= 0 && (t, own[t]) in title) ? title[t, own[t]] : "")
+        print result "\037\037" check "\037" ((t >= 0 && (t, own[t]) in title) ? title[t, own[t]] : "")
       }
     }'
 }
@@ -343,8 +348,12 @@ page_checks() {
 # The commit the share page was rendered at, and which version of the page it is.
 readonly HEAD_META='<meta name="softlight-head" content="([0-9a-fA-F]+)"'
 readonly PAGE_ID_META='<meta name="softlight-page-id" content="([0-9a-fA-F]+)"'
+# How many polls in a row the share page may fail to read (each already retried) before the
+# watch gives up with exit status 2 rather than guess at the review's results.
+readonly MAX_UNREAD=5
 
 seen=$'\n'
+unread=0
 commit=""
 while :; do
   # the review's own state, from the status the share page itself polls. `run_head` is the
@@ -358,8 +367,17 @@ while :; do
   run_head="${run_head:0:7}"
   head="${head:0:7}"
 
-  # the page is large (about 1 MB) but compresses well
-  html="$(curl --silent --location --compressed --max-time 30 --retry 2 "${url}")" || html=""
+  # the page is large (about 1 MB) but compresses well. Every share page has the checks list, so
+  # a page without it wasn't read (a failed request, an error page or a cut-off download): its
+  # checks are unknown, not passed, and the review can't be called over on it.
+  html="$(curl --silent --fail --location --compressed --max-time 30 --retry 2 "${url}")" || html=""
+  if [[ ${html} == *'<ol class="videos" id="videos">'* ]]; then
+    unread=0
+  else
+    unread=$((unread + 1))
+    ((unread < MAX_UNREAD)) \
+      || die "could not read the share page at ${url} ${unread} times in a row, so the review's results are unknown"
+  fi
   page_head=""
   if [[ ${html} =~ ${HEAD_META} ]]; then
     page_head="${BASH_REMATCH[1]:0:7}"
@@ -400,7 +418,8 @@ while :; do
   issues=0
   passed=0
   running=${stale}
-  while IFS=$'\t' read -r result device check finding; do
+  ((unread == 0)) || running=true
+  while IFS=$'\037' read -r result device check finding; do
     ${stale} && break
     case "${result}" in
       issue*)
@@ -427,7 +446,8 @@ while :; do
   # the review is over once its check has concluded and the page shows no check still running.
   # On a merged or closed pull request, a check still showing as running once the run has
   # concluded was cut off by the merge and will never be recorded, so it doesn't hold the watch.
-  # A superseded run doesn't end the watch either: it follows the newer push's run instead.
+  # A superseded run doesn't end the watch either: it follows the newer push's run instead. Nor
+  # does a page that couldn't be read, merged or not: its checks would read as none at all.
   concluded=false
   if [[ -n ${run_status} ]]; then
     [[ ${run_status} != completed && ${run_status} != none ]] || concluded=true
@@ -435,7 +455,8 @@ while :; do
     concluded=true
   fi
   settled=false
-  if [[ ${state} == ready && ${title} != *Superseded* ]] && ${concluded} && ! ${behind}; then
+  if [[ ${state} == ready && ${title} != *Superseded* ]] && ${concluded} && ! ${behind} \
+    && ((unread == 0)); then
     if ! ${running} || [[ ${pr_state} == merged || ${pr_state} == closed ]]; then
       settled=true
     fi
