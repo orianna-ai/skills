@@ -2,16 +2,10 @@
 name: softlight-walkthrough
 description: >-
   Use right after you open or push to a pull request in a repository Softlight reviews
-  (softlight[bot] comments on its PRs), even if you were only asked to "put up a PR". Opening the PR
-  is not the end of the task. Run the script's --watch in the background and tell the user when the
-  walkthrough is ready (its direct /demo/... link), each issue a check finds, and when the review is
-  complete, even if the PR merges mid-review. The user is whoever you report your work to: the
-  person you're talking with, or another session your instructions name, such as a driver or
-  orchestrator. Also use it instead of building, running or screenshotting the app when someone asks
-  to see or demo a PR's change, or asks for its walkthrough, Softlight video, share or demo link, or
-  what Softlight found. Only ever share the app.softlight.com/demo/... link it returns, never an
-  app.softlight.com/api/softlight/walkthrough/... or /v/... waiting page, even when Softlight's own
-  PR comment links one. Takes a PR URL, owner/repo#number, or a bare number in the current checkout.
+  (softlight[bot] comments on its PRs), even if you were only asked to put up a PR: opening it is not
+  the end of the task. Also use it, instead of building or screenshotting the app, whenever someone
+  asks to see or demo a PR's change, or for its Softlight walkthrough, video or link. Gets the
+  walkthrough link and follows the review.
 ---
 
 # softlight-walkthrough
@@ -61,12 +55,12 @@ First, how does a command's output reach you?
   code, stdout and stderr): tell the user as in step 2, then run `--wait <pr>`. It prints the bare
   link, with no `ready:` prefix: send it the moment it returns, before you start anything else,
   `--watch` included. Only then run `--watch <pr>`, and report its issues and completion when it
-  exits.
+  exits. If `--wait` runs out first, say the link is coming and start `--watch` anyway: it waits
+  for the link itself and prints `ready:` when it appears.
 - **You can't run anything in the background:** run the script once without flags and give the link,
   or say the video is still being made and offer to fetch it later.
 
-1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so each line reaches you as it's printed (in
-   Claude Code, the Monitor tool).
+1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so each line reaches you as it's printed.
 2. Right away, tell the user the PR link and that you'll send the walkthrough link and what
    Softlight finds. Don't hold this message for the link.
 3. Act on each line the moment it arrives. When the script exits, see [When it ends](#when-it-ends).
