@@ -50,20 +50,20 @@ the PR: a bare number depends on reading the checkout's remote.
 ## Watch the review
 
 The walkthrough is published about five minutes after a push; the checks take half an hour or more
-after that. Never run the watch in the foreground. If your tool times out background commands,
-give each run a timeout longer than its `--wait` or `--watch` seconds (900 and 3600 by default): a
-run killed early never prints its result.
+after that. Never run the watch in the foreground. If your tool times out background commands, give
+each run a timeout longer than its `--wait` or `--watch` seconds (900 and 3600 by default): a run
+killed early never prints its result.
 
 First, how does a command's output reach you?
 
 - **Each printed line, while it runs** (in Claude Code, the Monitor tool): follow the steps below.
 - **Only when a background command exits** (a background command or subagent that returns the exit
-  code, stdout and stderr): tell the user as in step 2, then run `--wait <pr>`. It prints the
-  bare link, with no `ready:` prefix: send it the moment it returns, before you start anything else,
+  code, stdout and stderr): tell the user as in step 2, then run `--wait <pr>`. It prints the bare
+  link, with no `ready:` prefix: send it the moment it returns, before you start anything else,
   `--watch` included. Only then run `--watch <pr>`, and report its issues and completion when it
   exits.
-- **You can't run anything in the background:** run the script once without flags and give the
-  link, or say the video is still being made and offer to fetch it later.
+- **You can't run anything in the background:** run the script once without flags and give the link,
+  or say the video is still being made and offer to fetch it later.
 
 1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so each line reaches you as it's printed (in
    Claude Code, the Monitor tool).
