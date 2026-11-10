@@ -75,7 +75,6 @@ command -v curl >/dev/null || die "curl is required"
 command -v jq >/dev/null || die "jq is required"
 command -v awk >/dev/null || die "awk is required"
 
-# --- Which pull request ---------------------------------------------------------------------------
 
 readonly NAME='[A-Za-z0-9_.-]+'
 if [[ $1 =~ ^https://(www\.)?github\.com/(${NAME})/(${NAME})/pull/([0-9]+)([/?#].*)?$ ]]; then
@@ -100,14 +99,13 @@ readonly WALKTHROUGH="${BASE_URL}/api/softlight/walkthrough/${owner}/${repo}/${n
 share_prefix="${BASE_URL}/demo/$(tr '[:upper:]' '[:lower:]' <<<"${owner}/${repo}")/pr${number}/"
 readonly share_prefix
 
-# --- Look it up ----------------------------------------------------------------------------------
 
 # Sets `url` and returns 0 once published; returns 1 with the reason in `pending` while it's on
 # its way; exits on any answer waiting won't change.
 look_up() {
   local links link response code body parsed state
 
-  # 1. The Softlight check run. Until the video is published it links a /v/ waiting page, so
+  # Until the video is published, the check run links a /v/ waiting page, so
   # only a share page counts.
   if command -v gh >/dev/null; then
     links="$(
@@ -125,7 +123,6 @@ look_up() {
     done <<<"${links}"
   fi
 
-  # 2. The status endpoint.
   response="$(
     curl --silent --show-error --max-time 30 --retry 2 \
       --write-out '\n%{http_code}' "${WALKTHROUGH}/status"
@@ -167,7 +164,6 @@ look_up() {
   return 1
 }
 
-# --- Wait for it ----------------------------------------------------------------------------------
 
 pending=""
 deadline=$((SECONDS + wait_seconds))
@@ -188,15 +184,11 @@ if ! ${watch}; then
 fi
 echo "ready: ${url}"
 
-# --- Watch the share page -------------------------------------------------------------------------
 
-# One line per check and device on the share page: "<result>\037<device>\037<check>\037<finding>",
-# with result passed, not_offered, running, or "issue[ <level>]". Split on \037, not a tab: `read`
-# collapses empty tab-separated fields, and the device is empty on a one-device page.
-#
-# The #videos list only shows the page's own device; each check's film (<section class="take">)
-# holds every device's result in its .devices box, and that's what the page's score counts. A check
-# shown from a previous run, or still being filmed, is running.
+# One line per check and device: "<result>\037<device>\037<check>\037<finding>", result one of
+# passed, not_offered, running, "issue[ <level>]". Split on \037, not tab: `read` collapses empty
+# tab fields, and device is empty on a one-device page. The #videos list only shows the own device;
+# every device's result is in each film's .devices box, which is what the page score counts.
 page_checks() {
   awk '
     function text(s) {
@@ -218,8 +210,7 @@ page_checks() {
     }
     { page = page $0 " " }
     END {
-      # the films, indexed the way data-take counts them in the list: every .take but a .more one
-      # (a "take pd-na" still counts, or later rows would get the wrong film)
+      # films are indexed as data-take counts them: every .take but a .more one, "pd-na" included
       ntakes = split(page, takes, "<section class=\"take")
       t = -1
       for (k = 2; k <= ntakes; k++) {
@@ -252,11 +243,9 @@ page_checks() {
           else if (cls ~ /not-offered/) st = "not_offered"
           else st = attr(tag, "data-verdict")
           state[t, d] = st
-          # the page scores only the devices some film was recorded (or is being) on
           if (st != "unchecked" && st != "not_offered") { filmed[d] = 1; anyfilm = 1 }
           level[t, d] = attr(tag, "data-priority")
         }
-        # a finding title belongs to the device of its .variant, or the own device outside the box
         depth = 0
         rest = take
         while (match(rest, /<div[ >][^>]*>|<\/div>|<p class="fix-title">[^<]*/)) {
@@ -281,7 +270,6 @@ page_checks() {
         }
       }
 
-      # the list: every check, in order, and whether it is still running
       start = index(page, "<ol class=\"videos\" id=\"videos\">")
       if (!start) exit
       page = substr(page, start)
@@ -316,7 +304,6 @@ page_checks() {
         }
         # on a page with devices, a film without a devices box counts on no device
         if (anyfilm && t >= 0) continue
-        # a check not filmed on the device the page shows is not one of its checks there
         if (row ~ /^[^>]*pd-off/) continue
         if (row ~ /class="mark bad/) {
           result = "issue"
@@ -336,7 +323,6 @@ page_checks() {
 
 readonly HEAD_META='<meta name="softlight-head" content="([0-9a-fA-F]+)"'
 readonly PAGE_ID_META='<meta name="softlight-page-id" content="([0-9a-fA-F]+)"'
-# Polls in a row the share page may fail to read before giving up with exit 2.
 readonly MAX_UNREAD=5
 
 seen=$'\n'
@@ -393,7 +379,6 @@ while :; do
     behind=true
   fi
 
-  # print each issue the first time it shows on this commit
   checks="$(page_checks <<<"${html}")" || checks=""
   issues=0
   passed=0
