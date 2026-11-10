@@ -4,8 +4,8 @@ description: >-
   Use right after you open or push to a pull request in a repository Softlight reviews
   (softlight[bot] comments on its PRs), even if you were only asked to put up a PR: opening it is not
   the end of the task. Also use it, instead of building or screenshotting the app, whenever someone
-  asks to see or demo a PR's change, or for its Softlight walkthrough, video or link. Gets the
-  walkthrough link and follows the review.
+  asks to see or demo a PR's change, for its Softlight walkthrough, video or link, or what Softlight
+  found. Gets the walkthrough link and follows the review.
 ---
 
 # softlight-walkthrough
