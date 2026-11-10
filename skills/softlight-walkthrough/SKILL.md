@@ -17,9 +17,9 @@ description: >-
 # softlight-walkthrough
 
 Softlight films a walkthrough of each pull request, publishes it on a share page
-(`https://app.softlight.com/demo/<owner>/<repo>/pr<number>/<token>`), then runs checks on it on
-each device (desktop, tablet, phone). The token is random: get the link from `get_walkthrough.sh`
-in this skill's directory, never build it.
+(`https://app.softlight.com/demo/<owner>/<repo>/pr<number>/<token>`), then runs checks on it on each
+device (desktop, tablet, phone). The token is random: get the link from `get_walkthrough.sh` in this
+skill's directory, never build it.
 
 **Only share the `/demo/...` link.** Never pass on a waiting page
 (`app.softlight.com/api/softlight/walkthrough/...` or `app.softlight.com/v/...`), even when
@@ -33,10 +33,10 @@ your own chat, so send every update there the way you send your report (for exam
 
 ## What to do
 
-| Situation                                                     | Do                                                                    |
-| ------------------------------------------------------------- | --------------------------------------------------------------------- |
-| You just opened or pushed to a PR, or were asked to follow it | [Watch the review](#watch-the-review) in the background.              |
-| Someone wants to see a PR's change, or asks for its link      | Run `get_walkthrough.sh <pr>` and hand over the link it prints.       |
+| Situation                                                     | Do                                                                        |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| You just opened or pushed to a PR, or were asked to follow it | [Watch the review](#watch-the-review) in the background.                  |
+| Someone wants to see a PR's change, or asks for its link      | Run `get_walkthrough.sh <pr>` and hand over the link it prints.           |
 | You pushed again while a watch on that PR is still running    | Leave it: it follows the review onto the new commit. Don't start another. |
 
 `<pr>` is `https://github.com/acme/web/pull/123`, `acme/web#123`, or `123` inside a checkout of
@@ -96,13 +96,13 @@ ones worth fixing, and say if the merge cut the checks short.
 Exit `0` is success: the link on stdout, or with `--watch`, a `complete:` line. Exit `1` means
 there's no walkthrough or result (yet); stderr is one line, `<state>: <why>`:
 
-| State                           | Means                                                         | Do                                                                                       |
-| ------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `queued`, `indexing`, `running` | The video or the review isn't done yet (or the wait ran out). | Say it's on its way and offer to keep watching. Don't restart a watch on your own.       |
-| `stopped`                       | The review ended without finishing its checks.                | Say so in its words, with what it found before then.                                     |
+| State                           | Means                                                             | Do                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `queued`, `indexing`, `running` | The video or the review isn't done yet (or the wait ran out).     | Say it's on its way and offer to keep watching. Don't restart a watch on your own.    |
+| `stopped`                       | The review ended without finishing its checks.                    | Say so in its words, with what it found before then.                                  |
 | `merged`, `none`                | No walkthrough: the PR merged first, or Softlight didn't film it. | Say nothing unless the user asked to see the change; then say there's no walkthrough. |
-| `video_only`                    | The video is in the PR description; there's no share page.    | Point the user to the PR description.                                                    |
-| `unknown`                       | Softlight couldn't say just now.                              | Run it again in a few seconds.                                                           |
+| `video_only`                    | The video is in the PR description; there's no share page.        | Point the user to the PR description.                                                 |
+| `unknown`                       | Softlight couldn't say just now.                                  | Run it again in a few seconds.                                                        |
 
 Exit `2` means bad input, a PR Softlight can't see, or Softlight unreachable; stderr says which.
 
