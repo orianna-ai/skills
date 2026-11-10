@@ -75,7 +75,6 @@ command -v curl >/dev/null || die "curl is required"
 command -v jq >/dev/null || die "jq is required"
 command -v awk >/dev/null || die "awk is required"
 
-
 readonly NAME='[A-Za-z0-9_.-]+'
 if [[ $1 =~ ^https://(www\.)?github\.com/(${NAME})/(${NAME})/pull/([0-9]+)([/?#].*)?$ ]]; then
   owner="${BASH_REMATCH[2]}" repo="${BASH_REMATCH[3]}" number="${BASH_REMATCH[4]}"
@@ -98,7 +97,6 @@ readonly WALKTHROUGH="${BASE_URL}/api/softlight/walkthrough/${owner}/${repo}/${n
 # The share page's path, lowercased the way Softlight mints it.
 share_prefix="${BASE_URL}/demo/$(tr '[:upper:]' '[:lower:]' <<<"${owner}/${repo}")/pr${number}/"
 readonly share_prefix
-
 
 # Sets `url` and returns 0 once published; returns 1 with the reason in `pending` while it's on
 # its way; exits on any answer waiting won't change.
@@ -164,7 +162,6 @@ look_up() {
   return 1
 }
 
-
 pending=""
 deadline=$((SECONDS + wait_seconds))
 url=""
@@ -183,7 +180,6 @@ if ! ${watch}; then
   exit 0
 fi
 echo "ready: ${url}"
-
 
 # One line per check and device: "<result>\037<device>\037<check>\037<finding>", result one of
 # passed, not_offered, running, "issue[ <level>]". Split on \037, not tab: `read` collapses empty
