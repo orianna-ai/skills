@@ -60,6 +60,12 @@ First, how does a command's output reach you?
 - **You can't run anything in the background:** run the script once without flags and give the link,
   or say the video is still being made and offer to fetch it later.
 
+If your harness can kill a background command once your turn ends or the machine goes idle, keep the
+run alive by waiting on it the way the harness provides (for example, registering a wait on the
+operation) before you end your turn. Never take a run that has gone quiet to mean it's still
+waiting. Before you report on the review, run the script once with no flags: it prints the link at
+once if it's published.
+
 1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so each line reaches you as it's printed.
 2. Right away, tell the user the PR link and that you'll send the walkthrough link and what
    Softlight finds. Don't hold this message for the link.
