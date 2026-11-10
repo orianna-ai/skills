@@ -1,50 +1,34 @@
 #!/usr/bin/env bash
 #
-# Print the link to a pull request's Softlight walkthrough (its share page), or watch the share
-# page and print each thing that happens on it.
+# Print the link to a pull request's Softlight walkthrough, or follow its review.
 #
-#   get_walkthrough.sh [--wait[=SECONDS] | --watch[=SECONDS]] <pull request URL | owner/repo#number | number>
+#   get_walkthrough.sh [--wait[=SECONDS] | --watch[=SECONDS]] <PR URL | owner/repo#number | number>
 #
-# A bare number is read against the current checkout's `origin` remote. With --wait, a pull
-# request whose video is still being made is polled until the walkthrough is published, for at
-# most SECONDS (default 900); use it right after opening or pushing to a pull request.
+#   (no flag)  print the /demo/ link if it's published, else exit 1
+#   --wait     poll until it's published, for at most SECONDS (default 900)
+#   --watch    follow the review for at most SECONDS (default 3600), one line per event:
+#                ready: <url>
+#                commit: <sha>
+#                issue: [P0|P1|P2 ][<device> ]— <check>[ — <finding>] (on <sha>)
+#                complete: <N> issues found, <P> of <M> checks passed[ (<K> not offered on a device, counted as passed)] (on <sha>)
 #
-# With --watch, the share page is followed until Softlight's review of the pull request is over,
-# for at most SECONDS (default 3600), and every event is printed on stdout, one line each, the
-# moment it happens:
-#   ready: <url>      the walkthrough is published at <url>
-#   commit: <sha>     the review is checking commit <sha>: printed once it is known, and again
-#                     each time a newer push moves the review to another commit
-#   issue: [P0|P1|P2 ][<device> ]— <check>[ — <finding>] (on <sha>)
-#                     a check found an issue on a device (desktop, tablet or phone) at commit
-#                     <sha>, once per commit, check and device; <finding> is the issue's title
-#   complete: <N> issues found, <P> of <M> checks passed[ (<K> not offered on a device, counted as passed)] (on <sha>)
-#                     the review is over; every device's results count, as in the share page's
-#                     score. A check not offered on a device counts as passed there, as on the
-#                     page; the PR description leaves those out, so its tally is K lower
-# Each line stands on its own, so the output can be streamed to whoever is waiting on it. A
-# result the page still shows from an earlier commit is never reported as the current one's.
+# A bare number is read against the checkout's origin remote.
 #
 # Exit status:
-#   0  the walkthrough URL is on stdout (with --watch: the review completed)
-#   1  there is no walkthrough (yet), or (with --watch) the review stopped or ran out of time;
-#      stderr is one line, "<state>: <why>", with state one of queued, indexing, running,
-#      video_only, merged, none, unknown or stopped
-#   2  bad input, or Softlight could not be read
+#   0  the link is on stdout (with --watch: the review completed)
+#   1  no walkthrough or result yet; stderr is "<state>: <why>", with state one of queued,
+#      indexing, running, video_only, merged, none, unknown or stopped
+#   2  bad input, a pull request Softlight can't see, or Softlight unreachable
 #
-# The link comes from the first of these that has it:
-#   1. The Softlight check run on the pull request's head commit, whose details URL is the
-#      walkthrough once it is published. Read with `gh`; skipped when gh is missing or signed out.
-#   2. Softlight's status endpoint for the pull request, which needs no credentials.
-#
-# Requires curl, jq and awk. Set SOFTLIGHT_BASE_URL to point at another Softlight deployment.
+# Requires curl, jq and awk; reads the check run with gh when it's signed in.
 
 set -euo pipefail
 
-BASE_URL="${SOFTLIGHT_BASE_URL:-https://app.softlight.com}"
-readonly BASE_URL="${BASE_URL%/}"
+readonly BASE_URL="https://app.softlight.com"
 readonly USAGE="usage: get_walkthrough.sh [--wait[=SECONDS] | --watch[=SECONDS]] <pull request URL | owner/repo#number | number>"
 readonly POLL_SECONDS=20
+readonly MAX_FAILED_PAGE_READS=5
+readonly FIELD_SEPARATOR=$'\037'
 
 die() {
   echo "$*" >&2
@@ -56,20 +40,15 @@ no_walkthrough() {
   exit 1
 }
 
-wait_seconds=0
 watch=false
+wait_seconds=0
 case "${1:-}" in
   -h | --help)
-    sed -n '3,40s/^# \{0,1\}//p' "$0"
+    awk 'NR > 2 && !/^#/ { exit } NR > 2 { sub(/^# ?/, ""); print }' "$0"
     exit 0
     ;;
   --wait)
     wait_seconds=900
-    shift
-    ;;
-  --wait=*)
-    wait_seconds="${1#--wait=}"
-    [[ ${wait_seconds} =~ ^[0-9]+$ ]] || die "--wait takes a number of seconds: $1"
     shift
     ;;
   --watch)
@@ -77,21 +56,20 @@ case "${1:-}" in
     wait_seconds=3600
     shift
     ;;
-  --watch=*)
-    watch=true
-    wait_seconds="${1#--watch=}"
-    [[ ${wait_seconds} =~ ^[0-9]+$ ]] || die "--watch takes a number of seconds: $1"
+  --wait=* | --watch=*)
+    [[ $1 != --watch=* ]] || watch=true
+    wait_seconds="${1#*=}"
+    [[ ${wait_seconds} =~ ^[0-9]+$ ]] || die "${1%%=*} takes a number of seconds: $1"
     shift
     ;;
   *) ;;
 esac
-readonly wait_seconds watch
-[[ $# -eq 1 && -n $1 ]] || die "${USAGE}"
-command -v curl >/dev/null || die "curl is required"
-command -v jq >/dev/null || die "jq is required"
-command -v awk >/dev/null || die "awk is required"
+readonly watch wait_seconds
 
-# --- Which pull request ---------------------------------------------------------------------------
+[[ $# -eq 1 && -n $1 ]] || die "${USAGE}"
+for tool in curl jq awk; do
+  command -v "${tool}" >/dev/null || die "${tool} is required"
+done
 
 readonly NAME='[A-Za-z0-9_.-]+'
 if [[ $1 =~ ^https://(www\.)?github\.com/(${NAME})/(${NAME})/pull/([0-9]+)([/?#].*)?$ ]]; then
@@ -102,98 +80,82 @@ elif [[ $1 =~ ^#?([0-9]+)$ ]]; then
   number="${BASH_REMATCH[1]}"
   remote="$(git remote get-url origin 2>/dev/null)" \
     || die "${number} needs a checkout with an origin remote; pass owner/repo#${number} instead"
-  [[ ${remote} =~ github\.com[:/](${NAME})/(${NAME})$ ]] \
-    || die "origin (${remote}) is not on GitHub; pass owner/repo#${number} instead"
+  [[ ${remote%/} =~ [:/](${NAME})/(${NAME})$ ]] \
+    || die "can't tell the repository from origin (${remote/\/\/*@/\/\/}); pass owner/repo#${number} instead"
   owner="${BASH_REMATCH[1]}" repo="${BASH_REMATCH[2]%.git}"
 else
   die "not a pull request: $1"$'\n'"${USAGE}"
 fi
 readonly owner repo number
 
-readonly WALKTHROUGH="${BASE_URL}/api/softlight/walkthrough/${owner}/${repo}/${number}"
-# The share page's path, lowercased the way Softlight mints it.
-share_prefix="${BASE_URL}/demo/$(tr '[:upper:]' '[:lower:]' <<<"${owner}/${repo}")/pr${number}/"
-readonly share_prefix
+readonly STATUS_URL="${BASE_URL}/api/softlight/walkthrough/${owner}/${repo}/${number}/status"
+readonly WAITING_PAGE_URL="${BASE_URL}/api/softlight/walkthrough/${owner}/${repo}/${number}"
+SHARE_URL_PREFIX="${BASE_URL}/demo/$(tr '[:upper:]' '[:lower:]' <<<"${owner}/${repo}")/pr${number}/"
+readonly SHARE_URL_PREFIX
+readonly NOT_VISIBLE="Softlight can't see ${owner}/${repo}#${number}; check that it exists and the Softlight app is installed on the repository"
 
-# --- Look it up ----------------------------------------------------------------------------------
+link_from_check_run() {
+  local check_link
 
-# Sets `url` to the walkthrough and returns 0 once it is published. Returns 1 with the reason in
-# `pending` while the video is still on its way, and exits for every answer that waiting won't
-# change.
-look_up() {
-  local links link response code body parsed state
+  command -v gh >/dev/null || return 1
+  while IFS= read -r check_link; do
+    if [[ ${check_link} == "${SHARE_URL_PREFIX}"* ]]; then
+      url="${check_link}"
+      return 0
+    fi
+  done < <(
+    gh pr view "${number}" --repo "${owner}/${repo}" --json statusCheckRollup --jq '
+      .statusCheckRollup[]
+      | select(.__typename == "CheckRun")
+      | select(.name == "Softlight Review" or (.name | startswith("Softlight video")))
+      | .detailsUrl // empty' 2>/dev/null || true
+  )
+  return 1
+}
 
-  # 1. The Softlight check run. Until the video is published, the check links to a signed /v/
-  # address that opens a waiting page, so only a share page counts.
-  if command -v gh >/dev/null; then
-    links="$(
-      gh pr view "${number}" --repo "${owner}/${repo}" --json statusCheckRollup --jq '
-        .statusCheckRollup[]
-        | select(.__typename == "CheckRun")
-        | select(.name == "Softlight Review" or (.name | startswith("Softlight video")))
-        | .detailsUrl // empty' 2>/dev/null
-    )" || links=""
-    while IFS= read -r link; do
-      if [[ ${link} == "${share_prefix}"* ]]; then
-        url="${link}"
-        return 0
-      fi
-    done <<<"${links}"
-  fi
+link_from_status() {
+  local response http_code body parsed state
 
-  # 2. The status endpoint.
-  response="$(
-    curl --silent --show-error --max-time 30 --retry 2 \
-      --write-out '\n%{http_code}' "${WALKTHROUGH}/status"
-  )" || die "could not reach ${WALKTHROUGH}/status"
-  code="${response##*$'\n'}"
+  response="$(curl --silent --show-error --max-time 30 --retry 2 --write-out '\n%{http_code}' "${STATUS_URL}")" \
+    || die "could not reach ${STATUS_URL}"
+  http_code="${response##*$'\n'}"
   body="${response%$'\n'*}"
 
-  case "${code}" in
+  case "${http_code}" in
     200) ;;
     3?? | 401) die "Softlight keeps ${owner}/${repo} behind sign-in, so its walkthrough link can't be looked up from here" ;;
-    404) die "Softlight can't see ${owner}/${repo}#${number}; check that it exists and the Softlight app is installed on the repository" ;;
-    *) die "${WALKTHROUGH}/status answered HTTP ${code}: ${body:0:300}" ;;
+    404) die "${NOT_VISIBLE}" ;;
+    *) die "${STATUS_URL} answered HTTP ${http_code}: ${body:0:300}" ;;
   esac
 
   parsed="$(jq -r '[.state // "unknown", .url // ""] | @tsv' <<<"${body}" 2>/dev/null)" \
-    || die "${WALKTHROUGH}/status answered something other than JSON: ${body:0:300}"
+    || die "${STATUS_URL} answered something other than JSON: ${body:0:300}"
   IFS=$'\t' read -r state url <<<"${parsed}"
-
-  if [[ ${state} == ready && -n ${url} ]]; then
-    return 0
-  fi
+  [[ ${state} != ready || -z ${url} ]] || return 0
 
   case "${state}" in
-    queued) pending="queued: Softlight hasn't started on this pull request yet" ;;
-    indexing) pending="indexing: Softlight is indexing the repository first" ;;
-    running) pending="running: the review is running and the video isn't published yet" ;;
+    queued) not_ready_reason="queued: Softlight hasn't started on this pull request yet" ;;
+    indexing) not_ready_reason="indexing: Softlight is indexing the repository first" ;;
+    running) not_ready_reason="running: the review is running and the video isn't published yet" ;;
     video_only) no_walkthrough "video_only: the pull request plays a video in its description but has no share page" ;;
     merged) no_walkthrough "merged: the pull request merged before the video finished recording, so there is no walkthrough" ;;
     none) no_walkthrough "none: Softlight didn't film this pull request" ;;
     *)
-      # "unknown" is also what the status endpoint says about a pull request GitHub won't show
-      # Softlight. The waiting page tells the two apart: it 404s on those.
-      code="$(curl --silent --max-time 30 --output /dev/null --write-out '%{http_code}' "${WALKTHROUGH}")" || code=""
-      [[ ${code} != 404 ]] \
-        || die "Softlight can't see ${owner}/${repo}#${number}; check that it exists and the Softlight app is installed on the repository"
-      pending="${state}: Softlight couldn't say just now"
+      [[ $(curl --silent --max-time 30 --output /dev/null --write-out '%{http_code}' "${WAITING_PAGE_URL}") != 404 ]] \
+        || die "${NOT_VISIBLE}"
+      not_ready_reason="${state}: Softlight couldn't say just now"
       ;;
   esac
   return 1
 }
 
-# --- Wait for it ----------------------------------------------------------------------------------
-
-pending=""
-deadline=$((SECONDS + wait_seconds))
 url=""
-until look_up; do
+not_ready_reason=""
+deadline=$((SECONDS + wait_seconds))
+until link_from_check_run || link_from_status; do
   if ((SECONDS + POLL_SECONDS > deadline)); then
-    if ((wait_seconds > 0)); then
-      no_walkthrough "${pending}; still not published after ${wait_seconds}s, run this again later"
-    fi
-    no_walkthrough "${pending}; run this again with --wait to wait for the video"
+    ((wait_seconds == 0)) || no_walkthrough "${not_ready_reason}; still not published after ${wait_seconds}s, run this again later"
+    no_walkthrough "${not_ready_reason}; run this again with --wait to wait for the video"
   fi
   sleep "${POLL_SECONDS}"
 done
@@ -204,25 +166,8 @@ if ! ${watch}; then
 fi
 echo "ready: ${url}"
 
-# --- Watch the share page -------------------------------------------------------------------------
-
-# The checks the share page lists, one result per check and device, one per line:
-# "<result>\037<device>\037<check>\037<finding>". The result is "passed", "not_offered" (the
-# product has no such flow on that device), "running", or "issue" followed by the issue's level
-# when it has one ("issue P1"); the finding is the issue's title.
-# The fields are split on the unit separator (\037), not a tab: a tab is whitespace to `read`, so
-# an empty device (a page with only one device) would collapse into the next field and shift the
-# check into the device and the finding into the check.
-#
-# The #videos list only shows the checks on the page's own device (desktop, usually). Every
-# check is filmed on each device the page offers (desktop, tablet, phone), and the results for
-# all of them are in the check's film, its <section class="take">: a hidden .devices box with a
-# .device per device and a .variant holding each other device's finding. Those are what the
-# page counts its "N of M checks passed" from, so they are read here. A page without devices
-# leaves the device empty and falls back to the list's marks. A check the page shows from a
-# previous run, or one still being filmed, is running: its result isn't this run's yet.
-page_checks() {
-  awk '
+share_page_results() {
+  awk -v sep="${FIELD_SEPARATOR}" '
     function text(s) {
       gsub(/<[^>]*>/, "", s)
       gsub(/&lt;/, "<", s)
@@ -230,273 +175,217 @@ page_checks() {
       gsub(/&quot;/, "\"", s)
       gsub(/&#x27;|&#39;/, "\047", s)
       gsub(/&amp;/, "\\&", s)
-      gsub(/[\t\037 ]+/, " ", s)
+      gsub("[\t" sep " ]+", " ", s)
       sub(/^ /, "", s)
       sub(/ $/, "", s)
       return s
     }
-    function attr(tag, name,    v) {
+
+    function attr(tag, name) {
       if (!match(tag, name "=\"[^\"]*\"")) return ""
-      v = substr(tag, RSTART + length(name) + 2, RLENGTH - length(name) - 3)
-      return v
+      return substr(tag, RSTART + length(name) + 2, RLENGTH - length(name) - 3)
     }
+
+    function before(s, marker,    at) {
+      at = index(s, marker)
+      return at ? substr(s, 1, at - 1) : s
+    }
+
+    function emit(result, device, check, finding) {
+      print result sep device sep check sep finding
+    }
+
     { page = page $0 " " }
+
     END {
-      # the films: the devices each one was filmed on, and the findings on each. A list row
-      # names its film by position (data-take), counting every film but a "more" one, as the
-      # page does (.reel > .take:not(.more)), whatever other classes it has: a film its own
-      # device could not record is a "take pd-na", and skipping it would hand every later row
-      # the results of the film after its own
-      ntakes = split(page, takes, "<section class=\"take")
-      t = -1
-      for (k = 2; k <= ntakes; k++) {
-        take = takes[k]
-        if (!match(take, /^[^"]*"/)) continue
-        classes = substr(take, 1, RLENGTH - 1)
+      film_count = split(page, film_sections, "<section class=\"take")
+      film = -1
+      for (k = 2; k <= film_count; k++) {
+        film_html = film_sections[k]
+        if (!match(film_html, /^[^"]*"/)) continue
+        classes = substr(film_html, 1, RLENGTH - 1)
         if (classes != "" && substr(classes, 1, 1) != " ") continue
         if ((classes " ") ~ / more /) continue
-        t++
-        stop = index(take, "</section>")
-        if (stop) take = substr(take, 1, stop - 1)
-        box = index(take, "<div class=\"devices\"")
-        if (!box) continue
-        boxtag = substr(take, box)
-        boxtag = substr(boxtag, 1, index(boxtag, ">"))
-        own[t] = attr(boxtag, "data-own")
-        head = substr(take, box + length(boxtag))
-        cut = index(head, "<div")
-        if (cut) head = substr(head, 1, cut - 1)
-        ndev[t] = 0
-        while (match(head, /<span class="device[^>]*>/)) {
-          tag = substr(head, RSTART, RLENGTH)
-          head = substr(head, RSTART + RLENGTH)
-          d = attr(tag, "data-device")
-          ndev[t]++
-          dev[t, ndev[t]] = d
-          cls = attr(tag, "class")
-          if (cls ~ /running/) st = "running"
-          else if (cls ~ /unchecked/) st = "unchecked"
-          else if (cls ~ /not-offered/) st = "not_offered"
-          else st = attr(tag, "data-verdict")
-          state[t, d] = st
-          # the page scores only the devices some film was recorded (or is being) on
-          if (st != "unchecked" && st != "not_offered") { filmed[d] = 1; anyfilm = 1 }
-          level[t, d] = attr(tag, "data-priority")
+        film++
+
+        film_html = before(film_html, "</section>")
+        box_at = index(film_html, "<div class=\"devices\"")
+        if (!box_at) continue
+        box_tag = substr(film_html, box_at)
+        box_tag = substr(box_tag, 1, index(box_tag, ">"))
+        own_device[film] = attr(box_tag, "data-own")
+
+        device_spans = before(substr(film_html, box_at + length(box_tag)), "<div")
+        device_count[film] = 0
+        while (match(device_spans, /<span class="device[^>]*>/)) {
+          span = substr(device_spans, RSTART, RLENGTH)
+          device_spans = substr(device_spans, RSTART + RLENGTH)
+          device = attr(span, "data-device")
+          device_of[film, ++device_count[film]] = device
+          span_class = attr(span, "class")
+          if (span_class ~ /running/) verdict = "running"
+          else if (span_class ~ /unchecked/) verdict = "unchecked"
+          else if (span_class ~ /not-offered/) verdict = "not_offered"
+          else verdict = attr(span, "data-verdict")
+          verdict_of[film, device] = verdict
+          priority_of[film, device] = attr(span, "data-priority")
+          if (verdict != "unchecked" && verdict != "not_offered") {
+            filmed_devices[device] = 1
+            page_has_filmed_device = 1
+          }
         }
-        # the title of each finding belongs to the .variant it sits in, or to the own device
-        # when it sits outside the .devices box
+
         depth = 0
-        rest = take
+        rest = film_html
         while (match(rest, /<div[ >][^>]*>|<\/div>|<p class="fix-title">[^<]*/)) {
-          tok = substr(rest, RSTART, RLENGTH)
+          token = substr(rest, RSTART, RLENGTH)
           rest = substr(rest, RSTART + RLENGTH)
-          if (tok == "</div>") {
+          if (token == "</div>") {
             if (depth > 0) depth--
-          } else if (tok ~ /^<div/) {
-            depth++
-            ctx[depth] = ""
-            if (tok ~ /class="devices"/) ctx[depth] = "box"
-            else if (tok ~ /class="variant/) ctx[depth] = "v:" attr(tok, "data-device")
+          } else if (token ~ /^<div/) {
+            div_kind[++depth] = ""
+            if (token ~ /class="devices"/) div_kind[depth] = "box"
+            else if (token ~ /class="variant/) div_kind[depth] = "v:" attr(token, "data-device")
           } else {
-            d = own[t]
+            device = own_device[film]
             for (j = depth; j >= 1; j--) {
-              if (ctx[j] ~ /^v:/) { d = substr(ctx[j], 3); break }
-              if (ctx[j] == "box") { d = ""; break }
+              if (div_kind[j] ~ /^v:/) { device = substr(div_kind[j], 3); break }
+              if (div_kind[j] == "box") { device = ""; break }
             }
-            sub(/<p class="fix-title">/, "", tok)
-            if (d != "" && !((t, d) in title)) title[t, d] = text(tok)
+            sub(/<p class="fix-title">/, "", token)
+            if (device != "" && !((film, device) in title)) title[film, device] = text(token)
           }
         }
       }
 
-      # the list: every check, in order, and whether it is still running
-      start = index(page, "<ol class=\"videos\" id=\"videos\">")
-      if (!start) exit
-      page = substr(page, start)
-      stop = index(page, "</ol>")
-      if (stop) page = substr(page, 1, stop - 1)
-      n = split(page, rows, "<li")
-      for (i = 2; i <= n; i++) {
+      list_at = index(page, "<ol class=\"videos\" id=\"videos\">")
+      if (!list_at) exit
+      row_count = split(before(substr(page, list_at), "</ol>"), rows, "<li")
+      for (i = 2; i <= row_count; i++) {
         row = rows[i]
         check = row
         if (!sub(/.*<span class="lbl">/, "", check)) continue
-        sub(/<\/span>.*/, "", check)
-        check = text(check)
-        t = match(row, /data-take="[0-9]+"/) ? substr(row, RSTART + 11, RLENGTH - 12) + 0 : -1
+        check = text(before(check, "</span>"))
+        film = match(row, /data-take="[0-9]+"/) ? substr(row, RSTART + 11, RLENGTH - 12) + 0 : -1
+
         if (row ~ /^[^>]*(pending|prev|pd-run)/ || row ~ /class="mark spin/) {
-          print "running\037\037" check "\037"
+          emit("running", "", check, "")
           continue
         }
-        if (t >= 0 && (t in ndev)) {
-          for (j = 1; j <= ndev[t]; j++) {
-            d = dev[t, j]
-            if (!(d in filmed)) continue
-            st = state[t, d]
-            if (st == "unchecked" || st == "withheld") continue
-            if (st == "running") result = "running"
-            else if (st == "finding") result = "issue" (level[t, d] != "" ? " " level[t, d] : "")
-            # a check not offered on a device counts as passed there, on purpose: that is how
-            # the page tallies "N of M checks passed" (the PR description leaves them out)
-            else if (st == "not_offered") result = "not_offered"
+
+        if (film in device_count) {
+          for (j = 1; j <= device_count[film]; j++) {
+            device = device_of[film, j]
+            verdict = verdict_of[film, device]
+            if (!(device in filmed_devices) || verdict == "unchecked" || verdict == "withheld") continue
+            if (verdict == "running" || verdict == "not_offered") result = verdict
+            else if (verdict == "finding") result = "issue" (priority_of[film, device] != "" ? " " priority_of[film, device] : "")
             else result = "passed"
-            print result "\037" d "\037" check "\037" ((t, d) in title ? title[t, d] : "")
+            emit(result, device, check, title[film, device])
           }
           continue
         }
-        # on a page with devices, a row whose film has no devices box (from an older frame) is on
-        # no device, as the page counts it
-        if (anyfilm && t >= 0) continue
-        # a check not filmed on the device the page shows is not one of its checks there
+
+        if (page_has_filmed_device && film >= 0) continue
         if (row ~ /^[^>]*pd-off/) continue
+        result = "passed"
         if (row ~ /class="mark bad/) {
           result = "issue"
-          if (match(row, /class="mark bad pri[^>]*>P[0-9]</)) {
-            lv = substr(row, RSTART, RLENGTH)
-            sub(/.*>/, "", lv)
-            sub(/</, "", lv)
-            result = result " " lv
-          }
-        } else {
-          result = "passed"
+          if (match(row, /class="mark bad pri[^>]*>P[0-9]</)) result = result " " substr(row, RSTART + RLENGTH - 3, 2)
         }
-        print result "\037\037" check "\037" ((t >= 0 && (t, own[t]) in title) ? title[t, own[t]] : "")
+        emit(result, "", check, film >= 0 ? title[film, own_device[film]] : "")
       }
     }'
 }
 
-# The commit the share page was rendered at, and which version of the page it is.
-readonly HEAD_META='<meta name="softlight-head" content="([0-9a-fA-F]+)"'
+readonly PAGE_COMMIT_META='<meta name="softlight-head" content="([0-9a-fA-F]+)"'
 readonly PAGE_ID_META='<meta name="softlight-page-id" content="([0-9a-fA-F]+)"'
-# How many polls in a row the share page may fail to read (each already retried) before the
-# watch gives up with exit status 2 rather than guess at the review's results.
-readonly MAX_UNREAD=5
 
-seen=$'\n'
-unread=0
 commit=""
+reported_issues=$'\n'
+failed_page_reads=0
 while :; do
-  # the review's own state, from the status the share page itself polls. `run_head` is the
-  # commit the run is checking; it can trail `head` while a run on an older commit finishes.
-  # `head` is the pull request's newest commit. `page_id` names the page the share link serves now.
-  # `rides` is set when Softlight judged a push not to change the review it already had: the
-  # head's check then rides that earlier commit's review, whose page speaks for the head.
-  parsed="$(
-    curl --silent --max-time 30 --retry 2 "${WALKTHROUGH}/status?rec=1" \
-      | jq -r '[.state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "", .pr_state // "", (.run_head // .head // ""), .page_id // "", .head // "", .rides // ""] | join("|")' 2>/dev/null
-  )" || parsed="unknown|||||||||"
-  IFS='|' read -r state run_status conclusion refresh title pr_state run_head page_id head rides <<<"${parsed}"
-  run_head="${run_head:0:7}"
-  head="${head:0:7}"
-  rides="${rides:0:7}"
+  status="$(
+    curl --silent --max-time 30 --retry 2 "${STATUS_URL}?rec=1" | jq -r '[
+      .state // "unknown", .run_status // "", .conclusion // "", .refresh // "", .title // "",
+      .pr_state // "", (.run_head // .head // ""), .page_id // "", .head // "", .rides // ""
+    ] | join("|")' 2>/dev/null
+  )" || status="unknown|||||||||"
+  IFS='|' read -r state run_status conclusion refresh title pr_state checked_commit served_page_id pr_head reused_review_commit <<<"${status}"
+  checked_commit="${checked_commit:0:7}"
+  pr_head="${pr_head:0:7}"
+  reused_review_commit="${reused_review_commit:0:7}"
+  pr_finished=false
+  [[ ${pr_state} != merged && ${pr_state} != closed ]] || pr_finished=true
 
-  # the page is large (about 1 MB) but compresses well. Every share page has the checks list, so
-  # a page without it wasn't read (a failed request, an error page or a cut-off download): its
-  # checks are unknown, not passed, and the review can't be called over on it.
-  html="$(curl --silent --fail --location --compressed --max-time 30 --retry 2 "${url}")" || html=""
-  if [[ ${html} == *'<ol class="videos" id="videos">'* ]]; then
-    unread=0
-  else
-    unread=$((unread + 1))
-    ((unread < MAX_UNREAD)) \
-      || die "could not read the share page at ${url} ${unread} times in a row, so the review's results are unknown"
+  page_html="$(curl --silent --fail --location --compressed --max-time 30 --retry 2 "${url}")" || page_html=""
+  if [[ ${page_html} == *'<ol class="videos" id="videos">'* ]]; then
+    failed_page_reads=0
+  elif ((++failed_page_reads >= MAX_FAILED_PAGE_READS)); then
+    die "could not read the share page at ${url} ${failed_page_reads} times in a row, so the review's results are unknown"
   fi
-  page_head=""
-  if [[ ${html} =~ ${HEAD_META} ]]; then
-    page_head="${BASH_REMATCH[1]:0:7}"
-  fi
-  their_id=""
-  if [[ ${html} =~ ${PAGE_ID_META} ]]; then
-    their_id="${BASH_REMATCH[1]}"
-  fi
+  page_commit=""
+  page_id=""
+  if [[ ${page_html} =~ ${PAGE_COMMIT_META} ]]; then page_commit="${BASH_REMATCH[1]:0:7}"; fi
+  if [[ ${page_html} =~ ${PAGE_ID_META} ]]; then page_id="${BASH_REMATCH[1]}"; fi
 
-  if [[ -n ${run_head} && ${run_head} != "${commit}" ]]; then
-    commit="${run_head}"
+  if [[ -n ${checked_commit} && ${checked_commit} != "${commit}" ]]; then
+    commit="${checked_commit}"
     echo "commit: ${commit}"
   fi
-  # Nothing on the page counts as this run's result, and the tick is treated as still running,
-  # when the page is stale:
-  # - it was rendered at another commit than the one being checked (a push Softlight hasn't
-  #   republished the page for yet), so every result on it is an earlier commit's; the page
-  #   itself greys them all out. Not when the page is at the commit the head's check rides:
-  #   that page is the review of the head, and no newer one is coming
-  # - it isn't the page the status says the link serves (a cache or replica that hasn't caught
-  #   up), which the page itself also refuses
-  ridden=false
-  [[ -z ${rides} || ${page_head} != "${rides}" ]] || ridden=true
-  stale=false
-  if [[ -n ${run_head} && -n ${page_head} && ${run_head} != "${page_head}" ]] && ! ${ridden}; then
-    stale=true
-  elif [[ -n ${page_id} && -n ${their_id} && ${page_id} != "${their_id}" ]]; then
-    stale=true
-  fi
-  # The review isn't over while the pull request's newest commit is ahead of the page's: a push
-  # Softlight hasn't started a run for yet leaves the previous commit's finished page up, which
-  # would otherwise read as complete. Once the pull request is merged or closed, no run is coming,
-  # and a page the head's check rides is the head's own result.
-  behind=false
-  if [[ -n ${head} && -n ${page_head} && ${head} != "${page_head}" ]] && ! ${ridden} \
-    && [[ ${pr_state} != merged && ${pr_state} != closed ]]; then
-    behind=true
-  fi
 
-  # the page's checks: print each issue the first time it shows on this commit
-  checks="$(page_checks <<<"${html}")" || checks=""
+  page_is_reused_review=false
+  [[ -z ${reused_review_commit} || ${page_commit} != "${reused_review_commit}" ]] || page_is_reused_review=true
+  page_is_stale=false
+  newer_push_pending=false
+  if ! ${page_is_reused_review} && [[ -n ${page_commit} ]]; then
+    [[ -z ${checked_commit} || ${checked_commit} == "${page_commit}" ]] || page_is_stale=true
+    [[ -z ${pr_head} || ${pr_head} == "${page_commit}" ]] || ${pr_finished} || newer_push_pending=true
+  fi
+  [[ -z ${served_page_id} || -z ${page_id} || ${served_page_id} == "${page_id}" ]] || page_is_stale=true
+
   issues=0
   passed=0
   not_offered=0
-  running=${stale}
-  ((unread == 0)) || running=true
-  while IFS=$'\037' read -r result device check finding; do
-    ${stale} && break
-    case "${result}" in
-      issue*)
-        issues=$((issues + 1))
-        level="${result#issue}"
-        key="${commit}|${device}|${check}"
-        if [[ ${seen} != *$'\n'"${key}"$'\n'* ]]; then
-          seen+="${key}"$'\n'
-          echo "issue:${level}${device:+ ${device}} — ${check}${finding:+ — ${finding}}${commit:+ (on ${commit})}"
-        fi
-        ;;
-      passed) passed=$((passed + 1)) ;;
-      not_offered)
-        passed=$((passed + 1))
-        not_offered=$((not_offered + 1))
-        ;;
-      running) running=true ;;
-      *) ;;
-    esac
-  done <<<"${checks}"
+  still_running=${page_is_stale}
+  ((failed_page_reads == 0)) || still_running=true
+  if ! ${page_is_stale}; then
+    while IFS="${FIELD_SEPARATOR}" read -r result device check finding; do
+      case "${result}" in
+        issue*)
+          issues=$((issues + 1))
+          issue_key="${commit}|${device}|${check}"
+          if [[ ${reported_issues} != *$'\n'"${issue_key}"$'\n'* ]]; then
+            reported_issues+="${issue_key}"$'\n'
+            echo "issue:${result#issue}${device:+ ${device}} — ${check}${finding:+ — ${finding}}${commit:+ (on ${commit})}"
+          fi
+          ;;
+        passed) passed=$((passed + 1)) ;;
+        not_offered) passed=$((passed + 1)) not_offered=$((not_offered + 1)) ;;
+        running) still_running=true ;;
+        *) ;;
+      esac
+    done < <(share_page_results <<<"${page_html}" || true)
+  fi
 
-  case "${issues}" in
-    0) summary="no issues found" ;;
-    1) summary="1 issue found" ;;
-    *) summary="${issues} issues found" ;;
-  esac
-
-  # the review is over once its check has concluded and the page shows no check still running.
-  # On a merged or closed pull request, a check still showing as running once the run has
-  # concluded was cut off by the merge and will never be recorded, so it doesn't hold the watch.
-  # A superseded run doesn't end the watch either: it follows the newer push's run instead. Nor
-  # does a page that couldn't be read, merged or not: its checks would read as none at all.
-  concluded=false
+  run_concluded=false
   if [[ -n ${run_status} ]]; then
-    [[ ${run_status} != completed && ${run_status} != none ]] || concluded=true
+    [[ ${run_status} != completed && ${run_status} != none ]] || run_concluded=true
   elif [[ -z ${refresh} ]]; then
-    concluded=true
+    run_concluded=true
   fi
-  settled=false
-  if [[ ${state} == ready && ${title} != *Superseded* ]] && ${concluded} && ! ${behind} \
-    && ((unread == 0)); then
-    if ! ${running} || [[ ${pr_state} == merged || ${pr_state} == closed ]]; then
-      settled=true
-    fi
-  fi
-  if ${settled}; then
+
+  if [[ ${state} == ready && ${title} != *Superseded* ]] && ${run_concluded} && ! ${newer_push_pending} \
+    && ((failed_page_reads == 0)) && { ! ${still_running} || ${pr_finished}; }; then
+    case "${issues}" in
+      0) summary="no issues found" ;;
+      1) summary="1 issue found" ;;
+      *) summary="${issues} issues found" ;;
+    esac
     tally="${passed} of $((passed + issues)) checks passed"
-    # the PR description counts these out, so its tally is lower by this many
     ((not_offered == 0)) || tally+=" (${not_offered} not offered on a device, counted as passed)"
     so_far="${summary} before then, ${tally}"
+
     if [[ ${title} == *Waiting* ]]; then
       no_walkthrough "stopped: Softlight is waiting until the pull request is ready for review"
     elif [[ ${title} == *Interrupted* && ${pr_state} == merged ]]; then
@@ -506,7 +395,7 @@ while :; do
     elif [[ -n ${conclusion} && ${conclusion} != success && ${conclusion} != neutral ]] \
       && [[ ! ${title} =~ Complete|Not\ Needed|Up\ to\ Date ]]; then
       no_walkthrough "stopped: ${title:-Softlight stopped before the checks finished}; ${so_far}"
-    elif ${running}; then
+    elif ${still_running}; then
       no_walkthrough "stopped: the pull request ${pr_state} before the checks finished; ${so_far}"
     fi
     echo "complete: ${summary}, ${tally}${commit:+ (on ${commit})}"
