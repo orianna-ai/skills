@@ -21,15 +21,14 @@
 #   2  bad input, a pull request Softlight can't see, or Softlight unreachable
 #
 # Requires curl, jq and awk; reads the check run with gh when it's signed in.
-# SOFTLIGHT_BASE_URL points it at another Softlight deployment.
 
 set -euo pipefail
 
-BASE_URL="${SOFTLIGHT_BASE_URL:-https://app.softlight.com}"
-readonly BASE_URL="${BASE_URL%/}"
+readonly BASE_URL="https://app.softlight.com"
 readonly USAGE="usage: get_walkthrough.sh [--wait[=SECONDS] | --watch[=SECONDS]] <pull request URL | owner/repo#number | number>"
 readonly POLL_SECONDS=20
 readonly MAX_FAILED_PAGE_READS=5
+readonly FIELD_SEPARATOR=$'\037'
 
 die() {
   echo "$*" >&2
@@ -114,8 +113,6 @@ link_from_check_run() {
   return 1
 }
 
-# Sets `url` from the status endpoint once it's published, or `not_ready_reason` while it's on its
-# way. Exits on any answer that waiting won't change.
 link_from_status() {
   local response http_code body parsed state
 
@@ -169,10 +166,8 @@ if ! ${watch}; then
 fi
 echo "ready: ${url}"
 
-# Prints "<result>\037<device>\037<check>\037<finding>" per check and device. \037, not a tab,
-# because `read` collapses empty tab-separated fields, and device is empty on a one-device page.
 share_page_results() {
-  awk '
+  awk -v sep="${FIELD_SEPARATOR}" '
     function text(s) {
       gsub(/<[^>]*>/, "", s)
       gsub(/&lt;/, "<", s)
@@ -180,7 +175,7 @@ share_page_results() {
       gsub(/&quot;/, "\"", s)
       gsub(/&#x27;|&#39;/, "\047", s)
       gsub(/&amp;/, "\\&", s)
-      gsub(/[\t\037 ]+/, " ", s)
+      gsub("[\t" sep " ]+", " ", s)
       sub(/^ /, "", s)
       sub(/ $/, "", s)
       return s
@@ -197,7 +192,7 @@ share_page_results() {
     }
 
     function emit(result, device, check, finding) {
-      print result "\037" device "\037" check "\037" finding
+      print result sep device sep check sep finding
     }
 
     { page = page $0 " " }
@@ -355,7 +350,7 @@ while :; do
   still_running=${page_is_stale}
   ((failed_page_reads == 0)) || still_running=true
   if ! ${page_is_stale}; then
-    while IFS=$'\037' read -r result device check finding; do
+    while IFS="${FIELD_SEPARATOR}" read -r result device check finding; do
       case "${result}" in
         issue*)
           issues=$((issues + 1))

@@ -21,12 +21,11 @@
 #   0  Softlight took the request; the review's page, which shows it once it's done, is on stdout
 #   2  bad input, nothing to review, the push failed, or Softlight refused or could not be reached
 #
-# Requires git, curl and jq. Set SOFTLIGHT_BASE_URL to point at another Softlight deployment.
+# Requires git, curl and jq.
 
 set -euo pipefail
 
-BASE_URL="${SOFTLIGHT_BASE_URL:-https://app.softlight.com}"
-readonly BASE_URL="${BASE_URL%/}"
+readonly BASE_URL="https://app.softlight.com"
 readonly USAGE="usage: start_review.sh [--base <rev>] [what to focus on]"
 # how far back the look-back on the default branch goes
 readonly LOOK_BACK=100

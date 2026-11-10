@@ -18,12 +18,11 @@
 #   0  Softlight took the request; the preview page, which shows the app once it boots, is on stdout
 #   2  bad input, the push failed, or Softlight refused or could not be reached
 #
-# Requires git, curl and jq. Set SOFTLIGHT_BASE_URL to point at another Softlight deployment.
+# Requires git, curl and jq.
 
 set -euo pipefail
 
-BASE_URL="${SOFTLIGHT_BASE_URL:-https://app.softlight.com}"
-readonly BASE_URL="${BASE_URL%/}"
+readonly BASE_URL="https://app.softlight.com"
 readonly USAGE="usage: start_preview.sh [what to look at]"
 
 die() {
