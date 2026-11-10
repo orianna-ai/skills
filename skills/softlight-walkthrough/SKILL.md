@@ -2,10 +2,10 @@
 name: softlight-walkthrough
 description: >-
   Use right after you open or push to a pull request in a repository Softlight reviews
-  (softlight[bot] comments on its PRs), even if you were only asked to put up a PR: opening it is not
-  the end of the task. Also use it, instead of building or screenshotting the app, whenever someone
-  asks to see or demo a PR's change, for its Softlight walkthrough, video or link, or what Softlight
-  found. Gets the walkthrough link and follows the review.
+  (softlight[bot] comments on its PRs), even if you were only asked to put up a PR: opening it is
+  not the end of the task. Also use it, instead of building or screenshotting the app, whenever
+  someone asks to see or demo a PR's change, for its Softlight walkthrough, video or link, or what
+  Softlight found. Gets the walkthrough link and follows the review.
 ---
 
 # softlight-walkthrough
@@ -55,8 +55,8 @@ First, how does a command's output reach you?
   code, stdout and stderr): tell the user as in step 2, then run `--wait <pr>`. It prints the bare
   link, with no `ready:` prefix: send it the moment it returns, before you start anything else,
   `--watch` included. Only then run `--watch <pr>`, and report its issues and completion when it
-  exits. If `--wait` runs out first, say the link is coming and start `--watch` anyway: it waits
-  for the link itself and prints `ready:` when it appears.
+  exits. If `--wait` runs out first, say the link is coming and start `--watch` anyway: it waits for
+  the link itself and prints `ready:` when it appears.
 - **You can't run anything in the background:** run the script once without flags and give the link,
   or say the video is still being made and offer to fetch it later.
 
