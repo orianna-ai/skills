@@ -26,6 +26,10 @@ skill's directory, never build it.
 Softlight's own PR comment or check links one: say the review has started and the link is coming.
 Paste the link bare, on its own line.
 
+**Send the link the moment you have it.** Whenever a `/demo/...` link reaches you (a `ready:` line,
+the URL `--wait` or a plain run prints, or the check run), send it to the user before you do
+anything else, including starting another run.
+
 **"The user" is whoever you report to:** the person who gave you the task, or the session your
 instructions say to report to (a driver, orchestrator or parent agent). In that case nobody reads
 your own chat, so send every update there the way you send your report (for example
@@ -40,12 +44,26 @@ your own chat, so send every update there the way you send your report (for exam
 | You pushed again while a watch on that PR is still running    | Leave it: it follows the review onto the new commit. Don't start another. |
 
 `<pr>` is `https://github.com/acme/web/pull/123`, `acme/web#123`, or `123` inside a checkout of
-`acme/web`.
+`acme/web`. Pass the URL or `owner/repo#number` whenever you have it, as you do right after opening
+the PR: a bare number depends on reading the checkout's remote.
 
 ## Watch the review
 
 The walkthrough is published about five minutes after a push; the checks take half an hour or more
-after that. Never run the watch in the foreground.
+after that. Never run the watch in the foreground. If your tool times out background commands,
+give each run a timeout longer than its `--wait` or `--watch` seconds (900 and 3600 by default): a
+run killed early never prints its result.
+
+First, how does a command's output reach you?
+
+- **Each printed line, while it runs** (in Claude Code, the Monitor tool): follow the steps below.
+- **Only when a background command exits** (a background command or subagent that returns the exit
+  code, stdout and stderr): tell the user as in step 2, then run `--wait <pr>`. It prints the
+  bare link, with no `ready:` prefix: send it the moment it returns, before you start anything else,
+  `--watch` included. Only then run `--watch <pr>`, and report its issues and completion when it
+  exits.
+- **You can't run anything in the background:** run the script once without flags and give the
+  link, or say the video is still being made and offer to fetch it later.
 
 1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so each line reaches you as it's printed (in
    Claude Code, the Monitor tool).
@@ -120,16 +138,6 @@ Exit `2` means bad input, a PR Softlight can't see, or Softlight unreachable; st
 ```
 
 Needs `curl`, `jq` and `awk`; also reads the PR's checks with `gh` when it's signed in.
-
-**If you can't stream a command's output line by line**, use two background runs that report when
-they exit (for example a background subagent that returns the exit code, stdout and stderr):
-
-1. Run `--wait <pr>`. It prints the bare link, with no `ready:` prefix. Send it to the user the
-   moment it returns, before you start anything else, `--watch` included.
-2. Then run `--watch <pr>`, and report its issues and completion when it exits.
-
-If you can't run anything in the background, run the script once without flags and give the link, or
-say the video is still being made and offer to fetch it later.
 
 **Without the script**, the link is in either of these:
 
