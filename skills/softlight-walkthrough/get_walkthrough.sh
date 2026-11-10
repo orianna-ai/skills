@@ -84,7 +84,6 @@ elif [[ $1 =~ ^#?([0-9]+)$ ]]; then
   number="${BASH_REMATCH[1]}"
   remote="$(git remote get-url origin 2>/dev/null)" \
     || die "${number} needs a checkout with an origin remote; pass owner/repo#${number} instead"
-  # Any host: agents often clone through a proxy (Capy's is git.capy.ai/<owner>/<repo>.git).
   [[ ${remote%/} =~ [:/](${NAME})/(${NAME})$ ]] \
     || die "can't tell the repository from origin (${remote/\/\/*@/\/\/}); pass owner/repo#${number} instead"
   owner="${BASH_REMATCH[1]}" repo="${BASH_REMATCH[2]%.git}"
