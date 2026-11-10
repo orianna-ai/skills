@@ -56,7 +56,8 @@ after that. Never run the watch in the foreground: it would hold the user's turn
 
 1. Start `<skill dir>/get_walkthrough.sh --watch <pr>` so each line it prints reaches you as it's
    printed. In Claude Code that's the Monitor tool. Act on each line as it arrives (table below);
-   don't wait for the next one.
+   don't wait for the next one. The `ready:` line goes to the user the moment it arrives, before you
+   do anything else, including checking on the review.
 2. Without waiting on it, tell the user now: give the PR link, and say you'll send the walkthrough
    link when it's ready and report what Softlight finds. If you report to another session, this is
    your usual report. Send it now; don't hold it for the link.
@@ -76,7 +77,7 @@ complete: 1 issue found, 17 of 18 checks passed (2 not offered on a device, coun
 
 | Line                                                       | Means                                             | Tell the user                                                                                               |
 | ---------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `ready: <url>`                                             | The walkthrough is published.                     | It's ready, with the URL on its own line.                                                                   |
+| `ready: <url>`                                             | The walkthrough is published.                     | Send it now, before anything else: it's ready, with the URL on its own line.                                |
 | `commit: <sha>`                                            | The review is checking `<sha>`.                   | Nothing the first time. After a push: Softlight has moved on to the new commit.                             |
 | `issue: [level ][device ]— <check>[ — <issue>] (on <sha>)` | A check found an issue on that device and commit. | The issue (lead with it; `<check>` is what Softlight was trying), device, level (`P0` is worst) and commit. |
 | `complete: <...> (on <sha>)`                               | The review is over.                               | It's complete, how many issues and checks passed on that commit, and the link again.                        |
@@ -125,8 +126,10 @@ there's no walkthrough or result (yet); stderr is one line, `<state>: <why>`:
 | `unknown`                       | Softlight couldn't say just now.                              | Run it again in a few seconds.                                                                                             |
 
 Exit `2` means bad input, a PR Softlight can't see (the app isn't installed, or the repository is
-behind Softlight sign-in), or Softlight unreachable; stderr says which. For a repository behind
-sign-in, tell the user to open the PR's Softlight check from a browser signed in to Softlight.
+behind Softlight sign-in), or Softlight unreachable; stderr says which. If it couldn't tell the
+repository from a bare number, or says Softlight can't see the PR, run it again with
+`owner/repo#number`. For a repository behind sign-in, tell the user to open the PR's Softlight check
+from a browser signed in to Softlight.
 
 ## Reference
 

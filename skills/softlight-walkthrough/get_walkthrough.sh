@@ -102,8 +102,11 @@ elif [[ $1 =~ ^#?([0-9]+)$ ]]; then
   number="${BASH_REMATCH[1]}"
   remote="$(git remote get-url origin 2>/dev/null)" \
     || die "${number} needs a checkout with an origin remote; pass owner/repo#${number} instead"
-  [[ ${remote} =~ github\.com[:/](${NAME})/(${NAME})$ ]] \
-    || die "origin (${remote}) is not on GitHub; pass owner/repo#${number} instead"
+  # The remote's last two path segments, on whatever host serves it: an agent's checkout often
+  # pulls through a proxy (Capy's is git.capy.ai/<owner>/<repo>.git), not github.com itself. A
+  # wrong guess is caught below, where Softlight says it can't see that pull request.
+  [[ ${remote%/} =~ [:/](${NAME})/(${NAME})$ ]] \
+    || die "can't tell the repository from origin (${remote}); pass owner/repo#${number} instead"
   owner="${BASH_REMATCH[1]}" repo="${BASH_REMATCH[2]%.git}"
 else
   die "not a pull request: $1"$'\n'"${USAGE}"
