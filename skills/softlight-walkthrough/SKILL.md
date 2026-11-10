@@ -122,10 +122,14 @@ Exit `2` means bad input, a PR Softlight can't see, or Softlight unreachable; st
 Needs `curl`, `jq` and `awk`; also reads the PR's checks with `gh` when it's signed in.
 
 **If you can't stream a command's output line by line**, use two background runs that report when
-they exit (for example a background subagent that returns the exit code, stdout and stderr): first
-`--wait <pr>` (send the link as soon as it returns), then `--watch <pr>` (report its issues and
-completion when it exits). If you can't run anything in the background, run the script once without
-flags and give the link, or say the video is still being made and offer to fetch it later.
+they exit (for example a background subagent that returns the exit code, stdout and stderr):
+
+1. Run `--wait <pr>`. It prints the bare link, with no `ready:` prefix. Send it to the user the
+   moment it returns, before you start anything else, `--watch` included.
+2. Then run `--watch <pr>`, and report its issues and completion when it exits.
+
+If you can't run anything in the background, run the script once without flags and give the link,
+or say the video is still being made and offer to fetch it later.
 
 **Without the script**, the link is in either of these:
 
