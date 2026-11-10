@@ -128,8 +128,8 @@ they exit (for example a background subagent that returns the exit code, stdout 
    moment it returns, before you start anything else, `--watch` included.
 2. Then run `--watch <pr>`, and report its issues and completion when it exits.
 
-If you can't run anything in the background, run the script once without flags and give the link,
-or say the video is still being made and offer to fetch it later.
+If you can't run anything in the background, run the script once without flags and give the link, or
+say the video is still being made and offer to fetch it later.
 
 **Without the script**, the link is in either of these:
 
